@@ -102,8 +102,10 @@ source .env
 
 ```text
 GET /api/er/users/search?nickname={nickname}
-GET /api/er/users/{userNum}/stats?seasonId={seasonId}
-GET /api/er/users/{userNum}/games
+GET /api/er/users/overview?nickname={nickname}&seasonId={seasonId}&matchingTeamMode={matchingTeamMode}
+GET /api/er/users/{userId}/stats?seasonId={seasonId}
+GET /api/er/users/{userId}/games
+GET /api/er/users/{userId}/rank?seasonId={seasonId}&matchingTeamMode={matchingTeamMode}
 GET /api/er/games/{gameId}
 GET /api/er/data/{metaType}
 ```
@@ -112,7 +114,7 @@ GET /api/er/data/{metaType}
 
 - 닉네임 검색 결과를 프론트에서 바로 쓰기 쉽게 정리한 응답 DTO다.
 - 포함 값:
-  - `userNum`
+  - `userId`
   - `nickname`
   - `raw`
 

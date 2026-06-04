@@ -22,7 +22,7 @@
 ## 2.1 전적 검색
 
 - 닉네임 기반 유저 검색
-- userNum 기반 내부 식별
+- userId 기반 내부 식별
 - 최근 매치 조회
 - 시즌 전적 조회
 - 실험체별 전적 조회
@@ -244,8 +244,8 @@
 
 ```text
 user:{nickname}
-matches:{userNum}
-stats:{userNum}
+matches:{userId}
+stats:{userId}
 meta:{characterId}
 refreshToken:{userId}
 rate-limit:{apiKey}
@@ -266,7 +266,7 @@ api-queue
 
 ## 5.2 매치 데이터 수집
 
-1. userNum 조회
+1. userId 조회
 2. matchId 목록 조회
 3. 상세 조회
 4. DB 저장

@@ -8,4 +8,5 @@ fi
 
 nickname="$1"
 
-curl "http://localhost:8080/api/er/users/search?nickname=${nickname}"
+curl --get "http://localhost:8080/api/er/users/search" \
+  --data-urlencode "nickname=${nickname}"
