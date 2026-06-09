@@ -8,6 +8,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
@@ -59,7 +60,7 @@ public class EternalReturnController {
     }
 
     @GetMapping("/games/{gameId}")
-    public Map<String, Object> getGame(@PathVariable int gameId) {
+    public GameDetailResponse getGame(@PathVariable int gameId) {
         return eternalReturnApiClient.getGame(gameId);
     }
 

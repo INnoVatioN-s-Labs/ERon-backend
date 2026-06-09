@@ -12,6 +12,8 @@ import org.springframework.web.client.HttpStatusCodeException;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
+import com.toyproject.eron.erapi.dto.GameDetailResponse;
+import com.toyproject.eron.erapi.dto.GameParticipantSummary;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
@@ -86,8 +88,9 @@ public class EternalReturnApiClient {
         return getJson("/rank/uid/{userId}/{seasonId}/{matchingTeamMode}", userId, seasonId, matchingTeamMode);
     }
 
-    public Map<String, Object> getGame(int gameId) {
-        return getJson("/games/{gameId}", gameId);
+    public GameDetailResponse getGame(int gameId) {
+        Map<String, Object> response = getJson("/games/{gameId}", gameId);
+        return toGameDetailResponse(response);
     }
 
     public Map<String, Object> getDataTable(String metaType) {
@@ -167,6 +170,70 @@ public class EternalReturnApiClient {
                 toInteger(game.get("mmrAfter")),
                 valueAsString(game.get("startDtm")),
                 toInteger(game.get("playTime"))
+        );
+    }
+
+    private GameDetailResponse toGameDetailResponse(Map<String, Object> response) {
+        List<GameParticipantSummary> participants = List.of();
+        if (response.get("userGames") instanceof List<?> userGames) {
+            participants = userGames.stream()
+                    .map(this::asMap)
+                    .filter(game -> game != null)
+                    .map(this::toGameParticipantSummary)
+                    .toList();
+        }
+
+        Map<String, Object> firstGame = firstUserGame(response);
+
+        return new GameDetailResponse(
+                toInteger(firstGame.get("gameId")),
+                toInteger(firstGame.get("seasonId")),
+                toInteger(firstGame.get("matchingMode")),
+                toInteger(firstGame.get("matchingTeamMode")),
+                valueAsString(firstGame.get("startDtm")),
+                toInteger(firstGame.get("duration")),
+                toInteger(firstGame.get("playTime")),
+                toInteger(firstGame.get("matchSize")),
+                participants.size(),
+                participants
+        );
+    }
+
+    private Map<String, Object> firstUserGame(Map<String, Object> response) {
+        if (response.get("userGames") instanceof List<?> userGames && !userGames.isEmpty()) {
+            Map<String, Object> firstGame = asMap(userGames.get(0));
+            if (firstGame != null) {
+                return firstGame;
+            }
+        }
+
+        return Map.of();
+    }
+
+    private GameParticipantSummary toGameParticipantSummary(Map<String, Object> game) {
+        return new GameParticipantSummary(
+                valueAsString(game.get("nickname")),
+                toInteger(game.get("teamNumber")),
+                toInteger(game.get("gameRank")),
+                toInteger(game.get("characterNum")),
+                toInteger(game.get("characterLevel")),
+                toInteger(game.get("playerKill")),
+                toInteger(game.get("playerAssistant")),
+                toInteger(game.get("playerDeaths")),
+                toInteger(game.get("monsterKill")),
+                toInteger(game.get("teamKill")),
+                toInteger(game.get("damageToPlayer")),
+                toInteger(game.get("damageFromPlayer")),
+                toInteger(game.get("damageToMonster")),
+                toInteger(game.get("healAmount")),
+                toInteger(game.get("protectAbsorb")),
+                toInteger(game.get("bestWeapon")),
+                toInteger(game.get("bestWeaponLevel")),
+                toInteger(game.get("rankPoint")),
+                toInteger(game.get("victory")),
+                toInteger(game.get("playTime")),
+                asMap(game.get("equipment")),
+                asMap(game.get("equipmentGrade"))
         );
     }
 

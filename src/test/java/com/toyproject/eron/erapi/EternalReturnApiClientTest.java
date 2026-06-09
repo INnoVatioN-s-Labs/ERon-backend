@@ -21,6 +21,7 @@ import org.springframework.web.client.RestClient;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
@@ -203,6 +204,135 @@ class EternalReturnApiClientTest {
                 .containsEntry("mmr", 4321);
         assertThat(capturedRequests).hasSize(1);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/rank/uid/abc-123/28/1");
+        assertThat(capturedRequests.get(0).query()).isNull();
+        assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
+    }
+
+    @Test
+    void getGameSendsApiKeyAndReturnsMappedGameDetail() {
+        server.createContext("/games/98765", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "message": "Success",
+                      "userGames": [
+                        {
+                          "gameId": 98765,
+                          "nickname": "winner",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 22,
+                          "characterLevel": 20,
+                          "gameRank": 1,
+                          "playerKill": 12,
+                          "playerAssistant": 11,
+                          "playerDeaths": 6,
+                          "monsterKill": 3,
+                          "teamKill": 25,
+                          "damageToPlayer": 35142,
+                          "damageFromPlayer": 16269,
+                          "damageToMonster": 5381,
+                          "healAmount": 3253,
+                          "protectAbsorb": 3171,
+                          "bestWeapon": 7,
+                          "bestWeaponLevel": 18,
+                          "rankPoint": 0,
+                          "victory": 1,
+                          "startDtm": "2026-06-09T13:44:20.020+0900",
+                          "duration": 614,
+                          "playTime": 609,
+                          "matchSize": 8,
+                          "teamNumber": 1,
+                          "equipment": {
+                            "0": 114702
+                          },
+                          "equipmentGrade": {
+                            "0": 6
+                          }
+                        },
+                        {
+                          "gameId": 98765,
+                          "nickname": "runnerUp",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 45,
+                          "characterLevel": 20,
+                          "gameRank": 2,
+                          "playerKill": 0,
+                          "playerAssistant": 24,
+                          "playerDeaths": 5,
+                          "monsterKill": 0,
+                          "teamKill": 27,
+                          "damageToPlayer": 13759,
+                          "damageFromPlayer": 36406,
+                          "damageToMonster": 850,
+                          "healAmount": 16163,
+                          "protectAbsorb": 13134,
+                          "bestWeapon": 4,
+                          "bestWeaponLevel": 16,
+                          "rankPoint": 0,
+                          "victory": 0,
+                          "startDtm": "2026-06-09T13:44:20.020+0900",
+                          "duration": 614,
+                          "playTime": 609,
+                          "matchSize": 8,
+                          "teamNumber": 2,
+                          "equipment": {
+                            "0": 109501
+                          },
+                          "equipmentGrade": {
+                            "0": 6
+                          }
+                        }
+                      ]
+                    }
+                    """);
+        });
+
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        GameDetailResponse response = client.getGame(98765);
+
+        assertThat(response.gameId()).isEqualTo(98765);
+        assertThat(response.seasonId()).isEqualTo(39);
+        assertThat(response.matchingMode()).isEqualTo(3);
+        assertThat(response.matchingTeamMode()).isEqualTo(3);
+        assertThat(response.startDtm()).isEqualTo("2026-06-09T13:44:20.020+0900");
+        assertThat(response.duration()).isEqualTo(614);
+        assertThat(response.playTime()).isEqualTo(609);
+        assertThat(response.matchSize()).isEqualTo(8);
+        assertThat(response.participantCount()).isEqualTo(2);
+        assertThat(response.participants())
+                .first()
+                .satisfies(participant -> {
+                    assertThat(participant.nickname()).isEqualTo("winner");
+                    assertThat(participant.teamNumber()).isEqualTo(1);
+                    assertThat(participant.gameRank()).isEqualTo(1);
+                    assertThat(participant.characterNum()).isEqualTo(22);
+                    assertThat(participant.characterLevel()).isEqualTo(20);
+                    assertThat(participant.playerKill()).isEqualTo(12);
+                    assertThat(participant.playerAssistant()).isEqualTo(11);
+                    assertThat(participant.playerDeaths()).isEqualTo(6);
+                    assertThat(participant.monsterKill()).isEqualTo(3);
+                    assertThat(participant.teamKill()).isEqualTo(25);
+                    assertThat(participant.damageToPlayer()).isEqualTo(35142);
+                    assertThat(participant.damageFromPlayer()).isEqualTo(16269);
+                    assertThat(participant.damageToMonster()).isEqualTo(5381);
+                    assertThat(participant.healAmount()).isEqualTo(3253);
+                    assertThat(participant.protectAbsorb()).isEqualTo(3171);
+                    assertThat(participant.bestWeapon()).isEqualTo(7);
+                    assertThat(participant.bestWeaponLevel()).isEqualTo(18);
+                    assertThat(participant.rankPoint()).isZero();
+                    assertThat(participant.victory()).isEqualTo(1);
+                    assertThat(participant.playTime()).isEqualTo(609);
+                    assertThat(participant.equipment()).containsEntry("0", 114702);
+                    assertThat(participant.equipmentGrade()).containsEntry("0", 6);
+                });
+        assertThat(capturedRequests).hasSize(1);
+        assertThat(capturedRequests.get(0).path()).isEqualTo("/games/98765");
         assertThat(capturedRequests.get(0).query()).isNull();
         assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
     }
