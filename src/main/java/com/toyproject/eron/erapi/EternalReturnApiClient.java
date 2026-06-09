@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
+import com.toyproject.eron.erapi.dto.UserRecentStatsResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
 import com.toyproject.eron.global.config.EternalReturnApiProperties;
 
@@ -69,7 +70,7 @@ public class EternalReturnApiClient {
         Map<String, Object> rank = getUserRank(user.userId(), seasonId, matchingTeamMode);
         UserGamesResponse games = getUserGames(user.userId());
 
-        return new UserOverviewResponse(user, rank, games);
+        return new UserOverviewResponse(user, rank, games, UserRecentStatsResponse.from(games));
     }
 
     public Map<String, Object> getUserStats(String userId, int seasonId) {

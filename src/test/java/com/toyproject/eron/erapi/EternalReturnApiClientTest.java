@@ -282,6 +282,18 @@ class EternalReturnApiClientTest {
                     assertThat(game.gameRank()).isEqualTo(3);
                     assertThat(game.playerKill()).isEqualTo(5);
                 });
+        assertThat(response.recentStats().gameCount()).isEqualTo(1);
+        assertThat(response.recentStats().winCount()).isZero();
+        assertThat(response.recentStats().top3Count()).isEqualTo(1);
+        assertThat(response.recentStats().top3Rate()).isEqualTo(1.0);
+        assertThat(response.recentStats().averageRank()).isEqualTo(3.0);
+        assertThat(response.recentStats().averageKills()).isEqualTo(5.0);
+        assertThat(response.recentStats().averageAssists()).isEqualTo(2.0);
+        assertThat(response.recentStats().averageDeaths()).isEqualTo(1.0);
+        assertThat(response.recentStats().averageKda()).isEqualTo(7.0);
+        assertThat(response.recentStats().averageDamageToPlayer()).isEqualTo(12345.0);
+        assertThat(response.recentStats().totalMmrGain()).isNull();
+        assertThat(response.recentStats().mostPlayedCharacterNum()).isEqualTo(1);
         assertThat(capturedRequests).extracting(CapturedRequest::path)
                 .containsExactly(
                         "/user/nickname",

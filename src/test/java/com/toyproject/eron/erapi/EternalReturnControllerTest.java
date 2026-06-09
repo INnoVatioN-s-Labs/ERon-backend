@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
+import com.toyproject.eron.erapi.dto.UserRecentStatsResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
 import com.toyproject.eron.global.error.GlobalExceptionHandler;
 
@@ -172,6 +173,21 @@ class EternalReturnControllerTest {
                                         551
                                 )),
                                 98765
+                        ),
+                        new UserRecentStatsResponse(
+                                1,
+                                0,
+                                0.0,
+                                1,
+                                1.0,
+                                3.0,
+                                5.0,
+                                2.0,
+                                1.0,
+                                7.0,
+                                12345.0,
+                                46,
+                                1
                         )
                 ));
 
@@ -188,7 +204,13 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.games.next").value(98765))
                 .andExpect(jsonPath("$.games.games[0].gameId").value(98765))
                 .andExpect(jsonPath("$.games.games[0].gameRank").value(3))
-                .andExpect(jsonPath("$.games.games[0].playerKill").value(5));
+                .andExpect(jsonPath("$.games.games[0].playerKill").value(5))
+                .andExpect(jsonPath("$.recentStats.gameCount").value(1))
+                .andExpect(jsonPath("$.recentStats.top3Count").value(1))
+                .andExpect(jsonPath("$.recentStats.top3Rate").value(1.0))
+                .andExpect(jsonPath("$.recentStats.averageKda").value(7.0))
+                .andExpect(jsonPath("$.recentStats.totalMmrGain").value(46))
+                .andExpect(jsonPath("$.recentStats.mostPlayedCharacterNum").value(1));
     }
 
     @Test

@@ -5,6 +5,7 @@ import java.util.Map;
 public record UserOverviewResponse(
         UserSearchResponse user,
         Map<String, Object> rank,
-        UserGamesResponse games
+        UserGamesResponse games,
+        UserRecentStatsResponse recentStats
 ) {
 }
