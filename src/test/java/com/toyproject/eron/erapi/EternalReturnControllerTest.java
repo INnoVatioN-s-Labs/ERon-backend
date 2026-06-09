@@ -15,6 +15,8 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import com.toyproject.eron.erapi.dto.GameDetailResponse;
+import com.toyproject.eron.erapi.dto.GameParticipantSummary;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
@@ -211,6 +213,97 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.recentStats.averageKda").value(7.0))
                 .andExpect(jsonPath("$.recentStats.totalMmrGain").value(46))
                 .andExpect(jsonPath("$.recentStats.mostPlayedCharacterNum").value(1));
+    }
+
+    @Test
+    void getGameReturnsMappedGameDetail() throws Exception {
+        when(eternalReturnApiClient.getGame(98765))
+                .thenReturn(new GameDetailResponse(
+                        98765,
+                        39,
+                        3,
+                        3,
+                        "2026-06-09T13:44:20.020+0900",
+                        614,
+                        609,
+                        8,
+                        2,
+                        List.of(
+                                new GameParticipantSummary(
+                                        "winner",
+                                        1,
+                                        1,
+                                        22,
+                                        20,
+                                        12,
+                                        11,
+                                        6,
+                                        3,
+                                        25,
+                                        35142,
+                                        16269,
+                                        5381,
+                                        3253,
+                                        3171,
+                                        7,
+                                        18,
+                                        0,
+                                        1,
+                                        609,
+                                        Map.of("0", 114702),
+                                        Map.of("0", 6)
+                                ),
+                                new GameParticipantSummary(
+                                        "runnerUp",
+                                        2,
+                                        2,
+                                        45,
+                                        20,
+                                        0,
+                                        24,
+                                        5,
+                                        0,
+                                        27,
+                                        13759,
+                                        36406,
+                                        850,
+                                        16163,
+                                        13134,
+                                        4,
+                                        16,
+                                        0,
+                                        0,
+                                        609,
+                                        Map.of("0", 109501),
+                                        Map.of("0", 6)
+                                )
+                        )
+                ));
+
+        mockMvc.perform(get("/api/er/games/98765"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gameId").value(98765))
+                .andExpect(jsonPath("$.seasonId").value(39))
+                .andExpect(jsonPath("$.matchingMode").value(3))
+                .andExpect(jsonPath("$.matchingTeamMode").value(3))
+                .andExpect(jsonPath("$.startDtm").value("2026-06-09T13:44:20.020+0900"))
+                .andExpect(jsonPath("$.duration").value(614))
+                .andExpect(jsonPath("$.playTime").value(609))
+                .andExpect(jsonPath("$.matchSize").value(8))
+                .andExpect(jsonPath("$.participantCount").value(2))
+                .andExpect(jsonPath("$.participants[0].nickname").value("winner"))
+                .andExpect(jsonPath("$.participants[0].teamNumber").value(1))
+                .andExpect(jsonPath("$.participants[0].gameRank").value(1))
+                .andExpect(jsonPath("$.participants[0].characterNum").value(22))
+                .andExpect(jsonPath("$.participants[0].playerKill").value(12))
+                .andExpect(jsonPath("$.participants[0].playerAssistant").value(11))
+                .andExpect(jsonPath("$.participants[0].playerDeaths").value(6))
+                .andExpect(jsonPath("$.participants[0].damageToPlayer").value(35142))
+                .andExpect(jsonPath("$.participants[0].equipment.0").value(114702))
+                .andExpect(jsonPath("$.participants[1].nickname").value("runnerUp"))
+                .andExpect(jsonPath("$.participants[1].victory").value(0))
+                .andExpect(jsonPath("$.raw").doesNotExist())
+                .andExpect(jsonPath("$.participants[0].raw").doesNotExist());
     }
 
     @Test
