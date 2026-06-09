@@ -8,6 +8,8 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.toyproject.eron.erapi.dto.UserGamesResponse;
+import com.toyproject.eron.erapi.dto.UserOverviewResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
 
 @RestController
@@ -25,17 +27,35 @@ public class EternalReturnController {
         return eternalReturnApiClient.getUserByNickname(nickname);
     }
 
-    @GetMapping("/users/{userNum}/stats")
-    public Map<String, Object> getUserStats(
-            @PathVariable int userNum,
-            @RequestParam int seasonId
+    @GetMapping("/users/overview")
+    public UserOverviewResponse getUserOverview(
+            @RequestParam String nickname,
+            @RequestParam int seasonId,
+            @RequestParam int matchingTeamMode
     ) {
-        return eternalReturnApiClient.getUserStats(userNum, seasonId);
+        return eternalReturnApiClient.getUserOverview(nickname, seasonId, matchingTeamMode);
     }
 
-    @GetMapping("/users/{userNum}/games")
-    public Map<String, Object> getUserGames(@PathVariable int userNum) {
-        return eternalReturnApiClient.getUserGames(userNum);
+    @GetMapping("/users/{userId}/stats")
+    public Map<String, Object> getUserStats(
+            @PathVariable String userId,
+            @RequestParam int seasonId
+    ) {
+        return eternalReturnApiClient.getUserStats(userId, seasonId);
+    }
+
+    @GetMapping("/users/{userId}/games")
+    public UserGamesResponse getUserGames(@PathVariable String userId) {
+        return eternalReturnApiClient.getUserGames(userId);
+    }
+
+    @GetMapping("/users/{userId}/rank")
+    public Map<String, Object> getUserRank(
+            @PathVariable String userId,
+            @RequestParam int seasonId,
+            @RequestParam int matchingTeamMode
+    ) {
+        return eternalReturnApiClient.getUserRank(userId, seasonId, matchingTeamMode);
     }
 
     @GetMapping("/games/{gameId}")
