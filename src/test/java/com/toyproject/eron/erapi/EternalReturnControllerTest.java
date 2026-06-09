@@ -71,6 +71,7 @@ class EternalReturnControllerTest {
                                 3,
                                 3,
                                 1,
+                                "Jackie",
                                 3,
                                 5,
                                 2,
@@ -96,6 +97,7 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.games[0].matchingMode").value(3))
                 .andExpect(jsonPath("$.games[0].matchingTeamMode").value(3))
                 .andExpect(jsonPath("$.games[0].characterNum").value(1))
+                .andExpect(jsonPath("$.games[0].characterName").value("Jackie"))
                 .andExpect(jsonPath("$.games[0].gameRank").value(3))
                 .andExpect(jsonPath("$.games[0].playerKill").value(5))
                 .andExpect(jsonPath("$.games[0].playerAssistant").value(2))
@@ -161,6 +163,7 @@ class EternalReturnControllerTest {
                                         3,
                                         3,
                                         1,
+                                        "Jackie",
                                         3,
                                         5,
                                         2,
@@ -206,6 +209,7 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.games.next").value(98765))
                 .andExpect(jsonPath("$.games.games[0].gameId").value(98765))
                 .andExpect(jsonPath("$.games.games[0].gameRank").value(3))
+                .andExpect(jsonPath("$.games.games[0].characterName").value("Jackie"))
                 .andExpect(jsonPath("$.games.games[0].playerKill").value(5))
                 .andExpect(jsonPath("$.recentStats.gameCount").value(1))
                 .andExpect(jsonPath("$.recentStats.top3Count").value(1))
@@ -234,6 +238,7 @@ class EternalReturnControllerTest {
                                         1,
                                         1,
                                         22,
+                                        "Luke",
                                         20,
                                         12,
                                         11,
@@ -258,6 +263,7 @@ class EternalReturnControllerTest {
                                         2,
                                         2,
                                         45,
+                                        "Celine",
                                         20,
                                         0,
                                         24,
@@ -295,6 +301,7 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.participants[0].teamNumber").value(1))
                 .andExpect(jsonPath("$.participants[0].gameRank").value(1))
                 .andExpect(jsonPath("$.participants[0].characterNum").value(22))
+                .andExpect(jsonPath("$.participants[0].characterName").value("Luke"))
                 .andExpect(jsonPath("$.participants[0].playerKill").value(12))
                 .andExpect(jsonPath("$.participants[0].playerAssistant").value(11))
                 .andExpect(jsonPath("$.participants[0].playerDeaths").value(6))

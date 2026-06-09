@@ -3,6 +3,8 @@ package com.toyproject.eron.erapi;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
 import org.springframework.core.ParameterizedTypeReference;
@@ -81,7 +83,7 @@ public class EternalReturnApiClient {
 
     public UserGamesResponse getUserGames(String userId) {
         Map<String, Object> response = getJson("/user/games/uid/{userId}", userId);
-        return toUserGamesResponse(response);
+        return toUserGamesResponse(response, getCharacterNamesByCode());
     }
 
     public Map<String, Object> getUserRank(String userId, int seasonId, int matchingTeamMode) {
@@ -90,7 +92,7 @@ public class EternalReturnApiClient {
 
     public GameDetailResponse getGame(int gameId) {
         Map<String, Object> response = getJson("/games/{gameId}", gameId);
-        return toGameDetailResponse(response);
+        return toGameDetailResponse(response, getCharacterNamesByCode());
     }
 
     public Map<String, Object> getDataTable(String metaType) {
@@ -137,27 +139,30 @@ public class EternalReturnApiClient {
         return null;
     }
 
-    private UserGamesResponse toUserGamesResponse(Map<String, Object> response) {
+    private UserGamesResponse toUserGamesResponse(Map<String, Object> response, Map<Integer, String> characterNamesByCode) {
         List<UserGameSummary> games = List.of();
         if (response.get("userGames") instanceof List<?> userGames) {
             games = userGames.stream()
                     .map(this::asMap)
                     .filter(game -> game != null)
-                    .map(this::toUserGameSummary)
+                    .map(game -> toUserGameSummary(game, characterNamesByCode))
                     .toList();
         }
 
         return new UserGamesResponse(games, toInteger(response.get("next")));
     }
 
-    private UserGameSummary toUserGameSummary(Map<String, Object> game) {
+    private UserGameSummary toUserGameSummary(Map<String, Object> game, Map<Integer, String> characterNamesByCode) {
+        Integer characterNum = toInteger(game.get("characterNum"));
+
         return new UserGameSummary(
                 toInteger(game.get("gameId")),
                 valueAsString(game.get("nickname")),
                 toInteger(game.get("seasonId")),
                 toInteger(game.get("matchingMode")),
                 toInteger(game.get("matchingTeamMode")),
-                toInteger(game.get("characterNum")),
+                characterNum,
+                characterNamesByCode.get(characterNum),
                 toInteger(game.get("gameRank")),
                 toInteger(game.get("playerKill")),
                 toInteger(game.get("playerAssistant")),
@@ -173,13 +178,13 @@ public class EternalReturnApiClient {
         );
     }
 
-    private GameDetailResponse toGameDetailResponse(Map<String, Object> response) {
+    private GameDetailResponse toGameDetailResponse(Map<String, Object> response, Map<Integer, String> characterNamesByCode) {
         List<GameParticipantSummary> participants = List.of();
         if (response.get("userGames") instanceof List<?> userGames) {
             participants = userGames.stream()
                     .map(this::asMap)
                     .filter(game -> game != null)
-                    .map(this::toGameParticipantSummary)
+                    .map(game -> toGameParticipantSummary(game, characterNamesByCode))
                     .toList();
         }
 
@@ -210,12 +215,15 @@ public class EternalReturnApiClient {
         return Map.of();
     }
 
-    private GameParticipantSummary toGameParticipantSummary(Map<String, Object> game) {
+    private GameParticipantSummary toGameParticipantSummary(Map<String, Object> game, Map<Integer, String> characterNamesByCode) {
+        Integer characterNum = toInteger(game.get("characterNum"));
+
         return new GameParticipantSummary(
                 valueAsString(game.get("nickname")),
                 toInteger(game.get("teamNumber")),
                 toInteger(game.get("gameRank")),
-                toInteger(game.get("characterNum")),
+                characterNum,
+                characterNamesByCode.get(characterNum),
                 toInteger(game.get("characterLevel")),
                 toInteger(game.get("playerKill")),
                 toInteger(game.get("playerAssistant")),
@@ -235,6 +243,25 @@ public class EternalReturnApiClient {
                 asMap(game.get("equipment")),
                 asMap(game.get("equipmentGrade"))
         );
+    }
+
+    private Map<Integer, String> getCharacterNamesByCode() {
+        Map<String, Object> response = getDataTable("Character");
+
+        if (!(response.get("data") instanceof List<?> characters)) {
+            return Map.of();
+        }
+
+        return characters.stream()
+                .map(this::asMap)
+                .filter(character -> character != null)
+                .filter(character -> toInteger(character.get("code")) != null)
+                .filter(character -> valueAsString(character.get("name")) != null)
+                .collect(Collectors.toMap(
+                        character -> toInteger(character.get("code")),
+                        character -> valueAsString(character.get("name")),
+                        (first, second) -> first
+                ));
     }
 
     private Integer toInteger(Object value) {
