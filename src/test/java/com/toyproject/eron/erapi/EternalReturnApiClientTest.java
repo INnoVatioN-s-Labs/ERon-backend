@@ -346,6 +346,87 @@ class EternalReturnApiClientTest {
     }
 
     @Test
+    void characterNamesAreCachedAcrossGameResponses() {
+        server.createContext("/user/games/uid/abc-123", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "userGames": [
+                        {
+                          "gameId": 98765,
+                          "nickname": "testUser",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 1,
+                          "gameRank": 3,
+                          "playerKill": 5,
+                          "playerAssistant": 2,
+                          "playerDeaths": 1,
+                          "damageToPlayer": 12345,
+                          "teamKill": 7,
+                          "rankPoint": 1620,
+                          "startDtm": "2026-05-30T23:15:29.029+0900",
+                          "playTime": 551
+                        }
+                      ],
+                      "next": 98765
+                    }
+                    """);
+        });
+        server.createContext("/games/98765", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "message": "Success",
+                      "userGames": [
+                        {
+                          "gameId": 98765,
+                          "nickname": "winner",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 22,
+                          "characterLevel": 20,
+                          "gameRank": 1,
+                          "playerKill": 12,
+                          "playerAssistant": 11,
+                          "playerDeaths": 6,
+                          "teamKill": 25,
+                          "damageToPlayer": 35142,
+                          "startDtm": "2026-06-09T13:44:20.020+0900",
+                          "duration": 614,
+                          "playTime": 609,
+                          "matchSize": 8,
+                          "teamNumber": 1
+                        }
+                      ]
+                    }
+                    """);
+        });
+        createCharacterDataContext();
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        UserGamesResponse games = client.getUserGames("abc-123");
+        GameDetailResponse detail = client.getGame(98765);
+
+        assertThat(games.games())
+                .singleElement()
+                .satisfies(game -> assertThat(game.characterName()).isEqualTo("Jackie"));
+        assertThat(detail.participants())
+                .singleElement()
+                .satisfies(participant -> assertThat(participant.characterName()).isEqualTo("Luke"));
+        assertThat(capturedRequests).extracting(CapturedRequest::path)
+                .containsExactly(
+                        "/user/games/uid/abc-123",
+                        "/data/Character",
+                        "/games/98765"
+                );
+    }
+
+    @Test
     void getUserOverviewCombinesUserRankAndGames() {
         server.createContext("/user/nickname", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));

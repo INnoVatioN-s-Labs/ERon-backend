@@ -3,7 +3,6 @@ package com.toyproject.eron.erapi;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
-import java.util.function.Function;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
@@ -32,6 +31,7 @@ public class EternalReturnApiClient {
 
     private final RestClient restClient;
     private final EternalReturnApiProperties properties;
+    private volatile Map<Integer, String> characterNamesByCodeCache;
 
     public EternalReturnApiClient(RestClient eternalReturnRestClient, EternalReturnApiProperties properties) {
         this.restClient = eternalReturnRestClient;
@@ -246,6 +246,21 @@ public class EternalReturnApiClient {
     }
 
     private Map<Integer, String> getCharacterNamesByCode() {
+        Map<Integer, String> cachedCharacterNames = characterNamesByCodeCache;
+        if (cachedCharacterNames != null) {
+            return cachedCharacterNames;
+        }
+
+        synchronized (this) {
+            if (characterNamesByCodeCache == null) {
+                characterNamesByCodeCache = loadCharacterNamesByCode();
+            }
+
+            return characterNamesByCodeCache;
+        }
+    }
+
+    private Map<Integer, String> loadCharacterNamesByCode() {
         Map<String, Object> response = getDataTable("Character");
 
         if (!(response.get("data") instanceof List<?> characters)) {
