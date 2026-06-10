@@ -7,6 +7,7 @@ public record GameParticipantSummary(
         Integer teamNumber,
         Integer gameRank,
         Integer characterNum,
+        String characterName,
         Integer characterLevel,
         Integer playerKill,
         Integer playerAssistant,

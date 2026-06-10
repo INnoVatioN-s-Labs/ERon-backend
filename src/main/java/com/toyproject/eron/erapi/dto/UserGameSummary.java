@@ -7,6 +7,7 @@ public record UserGameSummary(
         Integer matchingMode,
         Integer matchingTeamMode,
         Integer characterNum,
+        String characterName,
         Integer gameRank,
         Integer playerKill,
         Integer playerAssistant,

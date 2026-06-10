@@ -142,6 +142,7 @@ class EternalReturnApiClientTest {
                     }
                     """);
         });
+        createCharacterDataContext();
 
         EternalReturnApiClient client = createClient("test-api-key");
 
@@ -157,6 +158,7 @@ class EternalReturnApiClientTest {
                     assertThat(game.matchingMode()).isEqualTo(3);
                     assertThat(game.matchingTeamMode()).isEqualTo(3);
                     assertThat(game.characterNum()).isEqualTo(1);
+                    assertThat(game.characterName()).isEqualTo("Jackie");
                     assertThat(game.gameRank()).isEqualTo(3);
                     assertThat(game.playerKill()).isEqualTo(5);
                     assertThat(game.playerAssistant()).isEqualTo(2);
@@ -170,10 +172,12 @@ class EternalReturnApiClientTest {
                     assertThat(game.startDtm()).isEqualTo("2026-05-30T23:15:29.029+0900");
                     assertThat(game.playTime()).isEqualTo(551);
                 });
-        assertThat(capturedRequests).hasSize(1);
+        assertThat(capturedRequests).hasSize(2);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/user/games/uid/abc-123");
         assertThat(capturedRequests.get(0).query()).isNull();
         assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
+        assertThat(capturedRequests.get(1).path()).isEqualTo("/data/Character");
+        assertThat(capturedRequests.get(1).apiKey()).isEqualTo("test-api-key");
     }
 
     @Test
@@ -291,6 +295,7 @@ class EternalReturnApiClientTest {
                     }
                     """);
         });
+        createCharacterDataContext();
 
         EternalReturnApiClient client = createClient("test-api-key");
 
@@ -312,6 +317,7 @@ class EternalReturnApiClientTest {
                     assertThat(participant.teamNumber()).isEqualTo(1);
                     assertThat(participant.gameRank()).isEqualTo(1);
                     assertThat(participant.characterNum()).isEqualTo(22);
+                    assertThat(participant.characterName()).isEqualTo("Luke");
                     assertThat(participant.characterLevel()).isEqualTo(20);
                     assertThat(participant.playerKill()).isEqualTo(12);
                     assertThat(participant.playerAssistant()).isEqualTo(11);
@@ -331,10 +337,93 @@ class EternalReturnApiClientTest {
                     assertThat(participant.equipment()).containsEntry("0", 114702);
                     assertThat(participant.equipmentGrade()).containsEntry("0", 6);
                 });
-        assertThat(capturedRequests).hasSize(1);
+        assertThat(capturedRequests).hasSize(2);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/games/98765");
         assertThat(capturedRequests.get(0).query()).isNull();
         assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
+        assertThat(capturedRequests.get(1).path()).isEqualTo("/data/Character");
+        assertThat(capturedRequests.get(1).apiKey()).isEqualTo("test-api-key");
+    }
+
+    @Test
+    void characterNamesAreCachedAcrossGameResponses() {
+        server.createContext("/user/games/uid/abc-123", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "userGames": [
+                        {
+                          "gameId": 98765,
+                          "nickname": "testUser",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 1,
+                          "gameRank": 3,
+                          "playerKill": 5,
+                          "playerAssistant": 2,
+                          "playerDeaths": 1,
+                          "damageToPlayer": 12345,
+                          "teamKill": 7,
+                          "rankPoint": 1620,
+                          "startDtm": "2026-05-30T23:15:29.029+0900",
+                          "playTime": 551
+                        }
+                      ],
+                      "next": 98765
+                    }
+                    """);
+        });
+        server.createContext("/games/98765", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "message": "Success",
+                      "userGames": [
+                        {
+                          "gameId": 98765,
+                          "nickname": "winner",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 22,
+                          "characterLevel": 20,
+                          "gameRank": 1,
+                          "playerKill": 12,
+                          "playerAssistant": 11,
+                          "playerDeaths": 6,
+                          "teamKill": 25,
+                          "damageToPlayer": 35142,
+                          "startDtm": "2026-06-09T13:44:20.020+0900",
+                          "duration": 614,
+                          "playTime": 609,
+                          "matchSize": 8,
+                          "teamNumber": 1
+                        }
+                      ]
+                    }
+                    """);
+        });
+        createCharacterDataContext();
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        UserGamesResponse games = client.getUserGames("abc-123");
+        GameDetailResponse detail = client.getGame(98765);
+
+        assertThat(games.games())
+                .singleElement()
+                .satisfies(game -> assertThat(game.characterName()).isEqualTo("Jackie"));
+        assertThat(detail.participants())
+                .singleElement()
+                .satisfies(participant -> assertThat(participant.characterName()).isEqualTo("Luke"));
+        assertThat(capturedRequests).extracting(CapturedRequest::path)
+                .containsExactly(
+                        "/user/games/uid/abc-123",
+                        "/data/Character",
+                        "/games/98765"
+                );
     }
 
     @Test
@@ -392,6 +481,7 @@ class EternalReturnApiClientTest {
                     }
                     """);
         });
+        createCharacterDataContext();
 
         EternalReturnApiClient client = createClient("test-api-key");
 
@@ -410,6 +500,7 @@ class EternalReturnApiClientTest {
                 .satisfies(game -> {
                     assertThat(game.gameId()).isEqualTo(98765);
                     assertThat(game.gameRank()).isEqualTo(3);
+                    assertThat(game.characterName()).isEqualTo("Jackie");
                     assertThat(game.playerKill()).isEqualTo(5);
                 });
         assertThat(response.recentStats().gameCount()).isEqualTo(1);
@@ -428,7 +519,8 @@ class EternalReturnApiClientTest {
                 .containsExactly(
                         "/user/nickname",
                         "/rank/uid/abc-123/28/1",
-                        "/user/games/uid/abc-123"
+                        "/user/games/uid/abc-123",
+                        "/data/Character"
                 );
         assertThat(capturedRequests).allSatisfy(request -> assertThat(request.apiKey()).isEqualTo("test-api-key"));
     }
@@ -455,6 +547,32 @@ class EternalReturnApiClientTest {
                 .build();
 
         return new EternalReturnApiClient(restClient, properties);
+    }
+
+    private void createCharacterDataContext() {
+        server.createContext("/data/Character", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "message": "Success",
+                      "data": [
+                        {
+                          "code": 1,
+                          "name": "Jackie"
+                        },
+                        {
+                          "code": 22,
+                          "name": "Luke"
+                        },
+                        {
+                          "code": 45,
+                          "name": "Celine"
+                        }
+                      ]
+                    }
+                    """);
+        });
     }
 
     private void writeJson(HttpExchange exchange, int status, String body) throws IOException {
