@@ -15,6 +15,7 @@ import org.springframework.http.HttpStatus;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 
+import com.toyproject.eron.erapi.dto.EquipmentSummary;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.GameParticipantSummary;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
@@ -255,8 +256,7 @@ class EternalReturnControllerTest {
                                         0,
                                         1,
                                         609,
-                                        Map.of("0", 114702),
-                                        Map.of("0", 6)
+                                        Map.of("0", new EquipmentSummary(114702, "Longbow", 6))
                                 ),
                                 new GameParticipantSummary(
                                         "runnerUp",
@@ -280,8 +280,7 @@ class EternalReturnControllerTest {
                                         0,
                                         0,
                                         609,
-                                        Map.of("0", 109501),
-                                        Map.of("0", 6)
+                                        Map.of("0", new EquipmentSummary(109501, "Commander's Armor", 6))
                                 )
                         )
                 ));
@@ -306,7 +305,9 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.participants[0].playerAssistant").value(11))
                 .andExpect(jsonPath("$.participants[0].playerDeaths").value(6))
                 .andExpect(jsonPath("$.participants[0].damageToPlayer").value(35142))
-                .andExpect(jsonPath("$.participants[0].equipment.0").value(114702))
+                .andExpect(jsonPath("$.participants[0].equipment.0.itemCode").value(114702))
+                .andExpect(jsonPath("$.participants[0].equipment.0.itemName").value("Longbow"))
+                .andExpect(jsonPath("$.participants[0].equipment.0.itemGrade").value(6))
                 .andExpect(jsonPath("$.participants[1].nickname").value("runnerUp"))
                 .andExpect(jsonPath("$.participants[1].victory").value(0))
                 .andExpect(jsonPath("$.raw").doesNotExist())

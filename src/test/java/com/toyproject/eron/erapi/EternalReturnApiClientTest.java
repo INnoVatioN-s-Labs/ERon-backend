@@ -21,6 +21,7 @@ import org.springframework.web.client.RestClient;
 
 import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
+import com.toyproject.eron.erapi.dto.EquipmentSummary;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
@@ -143,6 +144,7 @@ class EternalReturnApiClientTest {
                     """);
         });
         createCharacterDataContext();
+        createEquipmentDataContexts();
 
         EternalReturnApiClient client = createClient("test-api-key");
 
@@ -296,6 +298,7 @@ class EternalReturnApiClientTest {
                     """);
         });
         createCharacterDataContext();
+        createEquipmentDataContexts();
 
         EternalReturnApiClient client = createClient("test-api-key");
 
@@ -334,19 +337,25 @@ class EternalReturnApiClientTest {
                     assertThat(participant.rankPoint()).isZero();
                     assertThat(participant.victory()).isEqualTo(1);
                     assertThat(participant.playTime()).isEqualTo(609);
-                    assertThat(participant.equipment()).containsEntry("0", 114702);
-                    assertThat(participant.equipmentGrade()).containsEntry("0", 6);
+                    assertThat(participant.equipment()).containsEntry(
+                            "0",
+                            new EquipmentSummary(114702, "Longbow", 6)
+                    );
                 });
-        assertThat(capturedRequests).hasSize(2);
+        assertThat(capturedRequests).hasSize(4);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/games/98765");
         assertThat(capturedRequests.get(0).query()).isNull();
         assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
         assertThat(capturedRequests.get(1).path()).isEqualTo("/data/Character");
         assertThat(capturedRequests.get(1).apiKey()).isEqualTo("test-api-key");
+        assertThat(capturedRequests.get(2).path()).isEqualTo("/data/ItemWeapon");
+        assertThat(capturedRequests.get(2).apiKey()).isEqualTo("test-api-key");
+        assertThat(capturedRequests.get(3).path()).isEqualTo("/data/ItemArmor");
+        assertThat(capturedRequests.get(3).apiKey()).isEqualTo("test-api-key");
     }
 
     @Test
-    void characterNamesAreCachedAcrossGameResponses() {
+    void metadataNamesAreCachedAcrossGameResponses() {
         server.createContext("/user/games/uid/abc-123", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
             writeJson(exchange, 200, """
@@ -400,13 +409,20 @@ class EternalReturnApiClientTest {
                           "duration": 614,
                           "playTime": 609,
                           "matchSize": 8,
-                          "teamNumber": 1
+                          "teamNumber": 1,
+                          "equipment": {
+                            "0": 114702
+                          },
+                          "equipmentGrade": {
+                            "0": 6
+                          }
                         }
                       ]
                     }
                     """);
         });
         createCharacterDataContext();
+        createEquipmentDataContexts();
         EternalReturnApiClient client = createClient("test-api-key");
 
         UserGamesResponse games = client.getUserGames("abc-123");
@@ -417,12 +433,20 @@ class EternalReturnApiClientTest {
                 .satisfies(game -> assertThat(game.characterName()).isEqualTo("Jackie"));
         assertThat(detail.participants())
                 .singleElement()
-                .satisfies(participant -> assertThat(participant.characterName()).isEqualTo("Luke"));
+                .satisfies(participant -> {
+                    assertThat(participant.characterName()).isEqualTo("Luke");
+                    assertThat(participant.equipment()).containsEntry(
+                            "0",
+                            new EquipmentSummary(114702, "Longbow", 6)
+                    );
+                });
         assertThat(capturedRequests).extracting(CapturedRequest::path)
                 .containsExactly(
                         "/user/games/uid/abc-123",
                         "/data/Character",
-                        "/games/98765"
+                        "/games/98765",
+                        "/data/ItemWeapon",
+                        "/data/ItemArmor"
                 );
     }
 
@@ -568,6 +592,39 @@ class EternalReturnApiClientTest {
                         {
                           "code": 45,
                           "name": "Celine"
+                        }
+                      ]
+                    }
+                    """);
+        });
+    }
+
+    private void createEquipmentDataContexts() {
+        server.createContext("/data/ItemWeapon", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "message": "Success",
+                      "data": [
+                        {
+                          "code": 114702,
+                          "name": "Longbow"
+                        }
+                      ]
+                    }
+                    """);
+        });
+        server.createContext("/data/ItemArmor", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "message": "Success",
+                      "data": [
+                        {
+                          "code": 109501,
+                          "name": "Commander's Armor"
                         }
                       ]
                     }

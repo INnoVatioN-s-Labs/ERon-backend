@@ -15,6 +15,7 @@ import org.springframework.web.client.RestClient;
 
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.GameParticipantSummary;
+import com.toyproject.eron.erapi.dto.EquipmentSummary;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
@@ -32,6 +33,7 @@ public class EternalReturnApiClient {
     private final RestClient restClient;
     private final EternalReturnApiProperties properties;
     private volatile Map<Integer, String> characterNamesByCodeCache;
+    private volatile Map<Integer, String> equipmentNamesByCodeCache;
 
     public EternalReturnApiClient(RestClient eternalReturnRestClient, EternalReturnApiProperties properties) {
         this.restClient = eternalReturnRestClient;
@@ -92,7 +94,7 @@ public class EternalReturnApiClient {
 
     public GameDetailResponse getGame(int gameId) {
         Map<String, Object> response = getJson("/games/{gameId}", gameId);
-        return toGameDetailResponse(response, getCharacterNamesByCode());
+        return toGameDetailResponse(response, getCharacterNamesByCode(), getEquipmentNamesByCode());
     }
 
     public Map<String, Object> getDataTable(String metaType) {
@@ -178,13 +180,17 @@ public class EternalReturnApiClient {
         );
     }
 
-    private GameDetailResponse toGameDetailResponse(Map<String, Object> response, Map<Integer, String> characterNamesByCode) {
+    private GameDetailResponse toGameDetailResponse(
+            Map<String, Object> response,
+            Map<Integer, String> characterNamesByCode,
+            Map<Integer, String> equipmentNamesByCode
+    ) {
         List<GameParticipantSummary> participants = List.of();
         if (response.get("userGames") instanceof List<?> userGames) {
             participants = userGames.stream()
                     .map(this::asMap)
                     .filter(game -> game != null)
-                    .map(game -> toGameParticipantSummary(game, characterNamesByCode))
+                    .map(game -> toGameParticipantSummary(game, characterNamesByCode, equipmentNamesByCode))
                     .toList();
         }
 
@@ -215,7 +221,11 @@ public class EternalReturnApiClient {
         return Map.of();
     }
 
-    private GameParticipantSummary toGameParticipantSummary(Map<String, Object> game, Map<Integer, String> characterNamesByCode) {
+    private GameParticipantSummary toGameParticipantSummary(
+            Map<String, Object> game,
+            Map<Integer, String> characterNamesByCode,
+            Map<Integer, String> equipmentNamesByCode
+    ) {
         Integer characterNum = toInteger(game.get("characterNum"));
 
         return new GameParticipantSummary(
@@ -240,9 +250,33 @@ public class EternalReturnApiClient {
                 toInteger(game.get("rankPoint")),
                 toInteger(game.get("victory")),
                 toInteger(game.get("playTime")),
-                asMap(game.get("equipment")),
-                asMap(game.get("equipmentGrade"))
+                toEquipmentSummaries(asMap(game.get("equipment")), asMap(game.get("equipmentGrade")), equipmentNamesByCode)
         );
+    }
+
+    private Map<String, EquipmentSummary> toEquipmentSummaries(
+            Map<String, Object> equipment,
+            Map<String, Object> equipmentGrade,
+            Map<Integer, String> equipmentNamesByCode
+    ) {
+        if (equipment == null) {
+            return Map.of();
+        }
+
+        return equipment.entrySet()
+                .stream()
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        entry -> {
+                            Integer itemCode = toInteger(entry.getValue());
+                            return new EquipmentSummary(
+                                    itemCode,
+                                    equipmentNamesByCode.get(itemCode),
+                                    equipmentGrade == null ? null : toInteger(equipmentGrade.get(entry.getKey()))
+                            );
+                        },
+                        (first, second) -> first
+                ));
     }
 
     private Map<Integer, String> getCharacterNamesByCode() {
@@ -263,18 +297,50 @@ public class EternalReturnApiClient {
     private Map<Integer, String> loadCharacterNamesByCode() {
         Map<String, Object> response = getDataTable("Character");
 
+        return toNamesByCode(response);
+    }
+
+    private Map<Integer, String> getEquipmentNamesByCode() {
+        Map<Integer, String> cachedEquipmentNames = equipmentNamesByCodeCache;
+        if (cachedEquipmentNames != null) {
+            return cachedEquipmentNames;
+        }
+
+        synchronized (this) {
+            if (equipmentNamesByCodeCache == null) {
+                equipmentNamesByCodeCache = loadEquipmentNamesByCode();
+            }
+
+            return equipmentNamesByCodeCache;
+        }
+    }
+
+    private Map<Integer, String> loadEquipmentNamesByCode() {
+        Map<Integer, String> weaponNamesByCode = toNamesByCode(getDataTable("ItemWeapon"));
+        Map<Integer, String> armorNamesByCode = toNamesByCode(getDataTable("ItemArmor"));
+
+        return java.util.stream.Stream
+                .concat(weaponNamesByCode.entrySet().stream(), armorNamesByCode.entrySet().stream())
+                .collect(Collectors.toMap(
+                        Map.Entry::getKey,
+                        Map.Entry::getValue,
+                        (first, second) -> first
+                ));
+    }
+
+    private Map<Integer, String> toNamesByCode(Map<String, Object> response) {
         if (!(response.get("data") instanceof List<?> characters)) {
             return Map.of();
         }
 
         return characters.stream()
                 .map(this::asMap)
-                .filter(character -> character != null)
-                .filter(character -> toInteger(character.get("code")) != null)
-                .filter(character -> valueAsString(character.get("name")) != null)
+                .filter(data -> data != null)
+                .filter(data -> toInteger(data.get("code")) != null)
+                .filter(data -> valueAsString(data.get("name")) != null)
                 .collect(Collectors.toMap(
-                        character -> toInteger(character.get("code")),
-                        character -> valueAsString(character.get("name")),
+                        data -> toInteger(data.get("code")),
+                        data -> valueAsString(data.get("name")),
                         (first, second) -> first
                 ));
     }
