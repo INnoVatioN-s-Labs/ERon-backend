@@ -24,7 +24,6 @@ public record GameParticipantSummary(
         Integer rankPoint,
         Integer victory,
         Integer playTime,
-        Map<String, Object> equipment,
-        Map<String, Object> equipmentGrade
+        Map<String, EquipmentSummary> equipment
 ) {
 }
