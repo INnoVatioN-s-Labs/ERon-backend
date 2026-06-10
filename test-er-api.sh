@@ -9,6 +9,7 @@ Usage:
   ./test-er-api.sh search <nickname>
   ./test-er-api.sh overview <nickname> [seasonId] [matchingTeamMode]
   ./test-er-api.sh games <gameId>
+  ./test-er-api.sh data <metaType>
 
 Shortcuts:
   ./test-er-api.sh <nickname>
@@ -60,6 +61,14 @@ case "${command}" in
     fi
 
     curl "${base_url}/api/er/games/$1"
+    ;;
+  data)
+    if [ "$#" -ne 1 ]; then
+      usage
+      exit 1
+    fi
+
+    curl "${base_url}/api/er/data/$1"
     ;;
   help|-h|--help)
     usage
