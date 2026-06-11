@@ -123,7 +123,7 @@ class EternalReturnApiClientTest {
                           "seasonId": 39,
                           "matchingMode": 3,
                           "matchingTeamMode": 3,
-                          "characterNum": 1,
+                          "characterNum": 68,
                           "gameRank": 3,
                           "playerKill": 5,
                           "playerAssistant": 2,
@@ -159,8 +159,8 @@ class EternalReturnApiClientTest {
                     assertThat(game.seasonId()).isEqualTo(39);
                     assertThat(game.matchingMode()).isEqualTo(3);
                     assertThat(game.matchingTeamMode()).isEqualTo(3);
-                    assertThat(game.characterNum()).isEqualTo(1);
-                    assertThat(game.characterName()).isEqualTo("Jackie");
+                    assertThat(game.characterNum()).isEqualTo(68);
+                    assertThat(game.characterName()).isEqualTo("Unknown Character (68)");
                     assertThat(game.gameRank()).isEqualTo(3);
                     assertThat(game.playerKill()).isEqualTo(5);
                     assertThat(game.playerAssistant()).isEqualTo(2);
@@ -266,7 +266,7 @@ class EternalReturnApiClientTest {
                           "seasonId": 39,
                           "matchingMode": 3,
                           "matchingTeamMode": 3,
-                          "characterNum": 45,
+                          "characterNum": 68,
                           "characterLevel": 20,
                           "gameRank": 2,
                           "playerKill": 0,
@@ -347,6 +347,12 @@ class EternalReturnApiClientTest {
                             "1",
                             new EquipmentSummary(108701, "Unknown Item (108701)", 5)
                     );
+                });
+        assertThat(response.participants())
+                .element(1)
+                .satisfies(participant -> {
+                    assertThat(participant.characterNum()).isEqualTo(68);
+                    assertThat(participant.characterName()).isEqualTo("Unknown Character (68)");
                 });
         assertThat(capturedRequests).hasSize(4);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/games/98765");
@@ -545,6 +551,7 @@ class EternalReturnApiClientTest {
         assertThat(response.recentStats().averageDamageToPlayer()).isEqualTo(12345.0);
         assertThat(response.recentStats().totalMmrGain()).isNull();
         assertThat(response.recentStats().mostPlayedCharacterNum()).isEqualTo(1);
+        assertThat(response.recentStats().mostPlayedCharacterName()).isEqualTo("Jackie");
         assertThat(capturedRequests).extracting(CapturedRequest::path)
                 .containsExactly(
                         "/user/nickname",

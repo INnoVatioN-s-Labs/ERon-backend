@@ -193,7 +193,8 @@ class EternalReturnControllerTest {
                                 7.0,
                                 12345.0,
                                 46,
-                                1
+                                1,
+                                "Jackie"
                         )
                 ));
 
@@ -217,7 +218,8 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.recentStats.top3Rate").value(1.0))
                 .andExpect(jsonPath("$.recentStats.averageKda").value(7.0))
                 .andExpect(jsonPath("$.recentStats.totalMmrGain").value(46))
-                .andExpect(jsonPath("$.recentStats.mostPlayedCharacterNum").value(1));
+                .andExpect(jsonPath("$.recentStats.mostPlayedCharacterNum").value(1))
+                .andExpect(jsonPath("$.recentStats.mostPlayedCharacterName").value("Jackie"));
     }
 
     @Test
