@@ -20,7 +20,8 @@ public record UserRecentStatsResponse(
         Double averageKda,
         Double averageDamageToPlayer,
         Integer totalMmrGain,
-        Integer mostPlayedCharacterNum
+        Integer mostPlayedCharacterNum,
+        String mostPlayedCharacterName
 ) {
 
     public static UserRecentStatsResponse from(UserGamesResponse gamesResponse) {
@@ -41,6 +42,7 @@ public record UserRecentStatsResponse(
                     null,
                     null,
                     null,
+                    null,
                     null
             );
         }
@@ -50,6 +52,7 @@ public record UserRecentStatsResponse(
         int totalKills = sum(games, UserGameSummary::playerKill);
         int totalAssists = sum(games, UserGameSummary::playerAssistant);
         int totalDeaths = sum(games, UserGameSummary::playerDeaths);
+        Integer mostPlayedCharacterNum = mostPlayedCharacterNum(games);
 
         return new UserRecentStatsResponse(
                 gameCount,
@@ -64,7 +67,8 @@ public record UserRecentStatsResponse(
                 round((double) (totalKills + totalAssists) / Math.max(totalDeaths, 1)),
                 average(games, UserGameSummary::damageToPlayer),
                 nullableSum(games, UserGameSummary::mmrGain),
-                mostPlayedCharacterNum(games)
+                mostPlayedCharacterNum,
+                characterNameFor(games, mostPlayedCharacterNum)
         );
     }
 
@@ -123,6 +127,19 @@ public record UserRecentStatsResponse(
                         .comparing(Map.Entry<Integer, Long>::getValue)
                         .thenComparing(Map.Entry::getKey))
                 .map(Map.Entry::getKey)
+                .orElse(null);
+    }
+
+    private static String characterNameFor(List<UserGameSummary> games, Integer characterNum) {
+        if (characterNum == null) {
+            return null;
+        }
+
+        return games.stream()
+                .filter(game -> Objects.equals(game.characterNum(), characterNum))
+                .map(UserGameSummary::characterName)
+                .filter(Objects::nonNull)
+                .findFirst()
                 .orElse(null);
     }
 

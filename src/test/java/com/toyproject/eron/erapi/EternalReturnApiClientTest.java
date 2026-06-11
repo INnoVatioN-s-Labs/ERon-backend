@@ -545,6 +545,7 @@ class EternalReturnApiClientTest {
         assertThat(response.recentStats().averageDamageToPlayer()).isEqualTo(12345.0);
         assertThat(response.recentStats().totalMmrGain()).isNull();
         assertThat(response.recentStats().mostPlayedCharacterNum()).isEqualTo(1);
+        assertThat(response.recentStats().mostPlayedCharacterName()).isEqualTo("Jackie");
         assertThat(capturedRequests).extracting(CapturedRequest::path)
                 .containsExactly(
                         "/user/nickname",
