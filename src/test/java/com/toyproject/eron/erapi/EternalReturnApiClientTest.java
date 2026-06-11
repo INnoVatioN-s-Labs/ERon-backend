@@ -252,10 +252,12 @@ class EternalReturnApiClientTest {
                           "matchSize": 8,
                           "teamNumber": 1,
                           "equipment": {
-                            "0": 114702
+                            "0": 114702,
+                            "1": 108701
                           },
                           "equipmentGrade": {
-                            "0": 6
+                            "0": 6,
+                            "1": 5
                           }
                         },
                         {
@@ -340,6 +342,10 @@ class EternalReturnApiClientTest {
                     assertThat(participant.equipment()).containsEntry(
                             "0",
                             new EquipmentSummary(114702, "Longbow", 6)
+                    );
+                    assertThat(participant.equipment()).containsEntry(
+                            "1",
+                            new EquipmentSummary(108701, "Unknown Item (108701)", 5)
                     );
                 });
         assertThat(capturedRequests).hasSize(4);

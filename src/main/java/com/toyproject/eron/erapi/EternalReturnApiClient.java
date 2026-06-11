@@ -271,12 +271,20 @@ public class EternalReturnApiClient {
                             Integer itemCode = toInteger(entry.getValue());
                             return new EquipmentSummary(
                                     itemCode,
-                                    equipmentNamesByCode.get(itemCode),
+                                    equipmentNameFor(itemCode, equipmentNamesByCode),
                                     equipmentGrade == null ? null : toInteger(equipmentGrade.get(entry.getKey()))
                             );
                         },
                         (first, second) -> first
                 ));
+    }
+
+    private String equipmentNameFor(Integer itemCode, Map<Integer, String> equipmentNamesByCode) {
+        if (itemCode == null) {
+            return null;
+        }
+
+        return equipmentNamesByCode.getOrDefault(itemCode, "Unknown Item (" + itemCode + ")");
     }
 
     private Map<Integer, String> getCharacterNamesByCode() {
