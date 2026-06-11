@@ -164,7 +164,7 @@ public class EternalReturnApiClient {
                 toInteger(game.get("matchingMode")),
                 toInteger(game.get("matchingTeamMode")),
                 characterNum,
-                characterNamesByCode.get(characterNum),
+                characterNameFor(characterNum, characterNamesByCode),
                 toInteger(game.get("gameRank")),
                 toInteger(game.get("playerKill")),
                 toInteger(game.get("playerAssistant")),
@@ -233,7 +233,7 @@ public class EternalReturnApiClient {
                 toInteger(game.get("teamNumber")),
                 toInteger(game.get("gameRank")),
                 characterNum,
-                characterNamesByCode.get(characterNum),
+                characterNameFor(characterNum, characterNamesByCode),
                 toInteger(game.get("characterLevel")),
                 toInteger(game.get("playerKill")),
                 toInteger(game.get("playerAssistant")),
@@ -277,6 +277,14 @@ public class EternalReturnApiClient {
                         },
                         (first, second) -> first
                 ));
+    }
+
+    private String characterNameFor(Integer characterNum, Map<Integer, String> characterNamesByCode) {
+        if (characterNum == null) {
+            return null;
+        }
+
+        return characterNamesByCode.getOrDefault(characterNum, "Unknown Character (" + characterNum + ")");
     }
 
     private String equipmentNameFor(Integer itemCode, Map<Integer, String> equipmentNamesByCode) {
