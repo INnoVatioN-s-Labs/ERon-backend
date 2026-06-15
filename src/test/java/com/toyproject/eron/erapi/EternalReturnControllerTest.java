@@ -333,6 +333,22 @@ class EternalReturnControllerTest {
     }
 
     @Test
+    void notFoundApiExceptionReturnsStructuredErrorResponse() throws Exception {
+        when(eternalReturnApiClient.getUserByNickname("unknown"))
+                .thenThrow(new EternalReturnApiException(
+                        HttpStatus.NOT_FOUND,
+                        "Eternal Return user not found."
+                ));
+
+        mockMvc.perform(get("/api/er/users/search").param("nickname", "unknown"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.message").value("Eternal Return user not found."));
+    }
+
+    @Test
     void missingRequiredQueryParameterReturnsBadRequest() throws Exception {
         mockMvc.perform(get("/api/er/users/search"))
                 .andExpect(status().isBadRequest())
