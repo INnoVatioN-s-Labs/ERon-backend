@@ -42,6 +42,7 @@ GET /api/er/data/{metaType}
 검증한 에러 케이스:
 
 - `/api/er/users/search` 요청에서 `nickname`이 누락되면 `400 Bad Request`를 반환한다.
+- `seasonId` 같은 숫자 query parameter에 숫자가 아닌 값이 들어오면 `400 Bad Request`를 반환한다.
 - 공식 ER API가 `429 Too Many Requests`를 반환하면 백엔드도 `429`와 동일한 JSON 구조를 반환한다.
 - `ER_API_KEY`가 설정되지 않으면 외부 API 호출 전에 `500 Internal Server Error`와 명확한 메시지를 반환한다.
 
@@ -51,6 +52,7 @@ GET /api/er/data/{metaType}
 
 - `apiExceptionReturnsStructuredErrorResponse`
 - `missingRequiredQueryParameterReturnsBadRequest`
+- `invalidQueryParameterTypeReturnsBadRequest`
 - `apiKeyConfigurationErrorReturnsStructuredErrorResponse`
 
 ---

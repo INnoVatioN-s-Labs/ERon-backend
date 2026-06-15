@@ -343,6 +343,18 @@ class EternalReturnControllerTest {
     }
 
     @Test
+    void invalidQueryParameterTypeReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/er/users/abc-123/rank")
+                        .param("seasonId", "not-a-number")
+                        .param("matchingTeamMode", "1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Invalid value 'not-a-number' for request parameter 'seasonId'. Expected type: int."));
+    }
+
+    @Test
     void apiKeyConfigurationErrorReturnsStructuredErrorResponse() throws Exception {
         when(eternalReturnApiClient.getUserByNickname("testUser"))
                 .thenThrow(new EternalReturnApiException(
