@@ -29,6 +29,9 @@ public class EternalReturnApiClient {
     private static final ParameterizedTypeReference<Map<String, Object>> MAP_RESPONSE_TYPE =
             new ParameterizedTypeReference<>() {
             };
+    private static final Map<Integer, String> LOCAL_CHARACTER_NAMES_BY_CODE = Map.of(
+            68, "Alonso"
+    );
 
     private final RestClient restClient;
     private final EternalReturnApiProperties properties;
@@ -313,7 +316,10 @@ public class EternalReturnApiClient {
     private Map<Integer, String> loadCharacterNamesByCode() {
         Map<String, Object> response = getDataTable("Character");
 
-        return toNamesByCode(response);
+        Map<Integer, String> characterNamesByCode = new java.util.HashMap<>(LOCAL_CHARACTER_NAMES_BY_CODE);
+        characterNamesByCode.putAll(toNamesByCode(response));
+
+        return Map.copyOf(characterNamesByCode);
     }
 
     private Map<Integer, String> getEquipmentNamesByCode() {
