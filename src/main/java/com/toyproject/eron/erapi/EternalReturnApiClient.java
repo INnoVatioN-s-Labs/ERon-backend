@@ -108,10 +108,11 @@ public class EternalReturnApiClient {
         assertApiKeyConfigured();
 
         try {
-            return restClient.get()
+            Map<String, Object> response = restClient.get()
                     .uri(path, uriVariables)
                     .retrieve()
                     .body(MAP_RESPONSE_TYPE);
+            return response == null ? Map.of() : response;
         } catch (HttpStatusCodeException exception) {
             throw toApiException(exception);
         } catch (ResourceAccessException exception) {
@@ -314,10 +315,8 @@ public class EternalReturnApiClient {
     }
 
     private Map<Integer, String> loadCharacterNamesByCode() {
-        Map<String, Object> response = getDataTable("Character");
-
         Map<Integer, String> characterNamesByCode = new java.util.HashMap<>(LOCAL_CHARACTER_NAMES_BY_CODE);
-        characterNamesByCode.putAll(toNamesByCode(response));
+        characterNamesByCode.putAll(loadNamesByCode("Character"));
 
         return Map.copyOf(characterNamesByCode);
     }
@@ -338,8 +337,8 @@ public class EternalReturnApiClient {
     }
 
     private Map<Integer, String> loadEquipmentNamesByCode() {
-        Map<Integer, String> weaponNamesByCode = toNamesByCode(getDataTable("ItemWeapon"));
-        Map<Integer, String> armorNamesByCode = toNamesByCode(getDataTable("ItemArmor"));
+        Map<Integer, String> weaponNamesByCode = loadNamesByCode("ItemWeapon");
+        Map<Integer, String> armorNamesByCode = loadNamesByCode("ItemArmor");
 
         return java.util.stream.Stream
                 .concat(weaponNamesByCode.entrySet().stream(), armorNamesByCode.entrySet().stream())
@@ -348,6 +347,14 @@ public class EternalReturnApiClient {
                         Map.Entry::getValue,
                         (first, second) -> first
                 ));
+    }
+
+    private Map<Integer, String> loadNamesByCode(String metaType) {
+        try {
+            return toNamesByCode(getDataTable(metaType));
+        } catch (EternalReturnApiException exception) {
+            return Map.of();
+        }
     }
 
     private Map<Integer, String> toNamesByCode(Map<String, Object> response) {

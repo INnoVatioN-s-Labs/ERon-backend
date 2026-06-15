@@ -219,6 +219,68 @@ class EternalReturnApiClientTest {
     }
 
     @Test
+    void getUserGamesReturnsEmptyListWhenUserGamesIsMissing() {
+        server.createContext("/user/games/uid/abc-123", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "next": 98765
+                    }
+                    """);
+        });
+        createCharacterDataContext();
+
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        UserGamesResponse response = client.getUserGames("abc-123");
+
+        assertThat(response.games()).isEmpty();
+        assertThat(response.next()).isEqualTo(98765);
+    }
+
+    @Test
+    void getUserGamesUsesFallbackNamesWhenCharacterMetadataFails() {
+        server.createContext("/user/games/uid/abc-123", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "userGames": [
+                        {
+                          "gameId": 98765,
+                          "nickname": "testUser",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 68,
+                          "gameRank": 3
+                        },
+                        {
+                          "gameId": 98766,
+                          "nickname": "unknownCharacterUser",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 999,
+                          "gameRank": 4
+                        }
+                      ]
+                    }
+                    """);
+        });
+        createFailingDataContext("Character");
+
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        UserGamesResponse response = client.getUserGames("abc-123");
+
+        assertThat(response.games()).hasSize(2);
+        assertThat(response.games().get(0).characterName()).isEqualTo("Alonso");
+        assertThat(response.games().get(1).characterName()).isEqualTo("Unknown Character (999)");
+    }
+
+    @Test
     void getUserRankSendsApiKeyAndReturnsRank() {
         server.createContext("/rank/uid/abc-123/28/1", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
@@ -499,6 +561,57 @@ class EternalReturnApiClientTest {
     }
 
     @Test
+    void getGameUsesUnknownItemsWhenEquipmentMetadataFails() {
+        server.createContext("/games/98765", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "message": "Success",
+                      "userGames": [
+                        {
+                          "gameId": 98765,
+                          "nickname": "winner",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 22,
+                          "characterLevel": 20,
+                          "gameRank": 1,
+                          "startDtm": "2026-06-09T13:44:20.020+0900",
+                          "duration": 614,
+                          "playTime": 609,
+                          "matchSize": 8,
+                          "teamNumber": 1,
+                          "equipment": {
+                            "0": 114702,
+                            "1": 109501
+                          },
+                          "equipmentGrade": {
+                            "0": 6,
+                            "1": 5
+                          }
+                        }
+                      ]
+                    }
+                    """);
+        });
+        createCharacterDataContext();
+        createFailingDataContext("ItemWeapon");
+        createFailingDataContext("ItemArmor");
+
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        GameDetailResponse response = client.getGame(98765);
+
+        assertThat(response.participants())
+                .singleElement()
+                .satisfies(participant -> assertThat(participant.equipment())
+                        .containsEntry("0", new EquipmentSummary(114702, "Unknown Item (114702)", 6))
+                        .containsEntry("1", new EquipmentSummary(109501, "Unknown Item (109501)", 5)));
+    }
+
+    @Test
     void getUserOverviewCombinesUserRankAndGames() {
         server.createContext("/user/nickname", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
@@ -694,6 +807,18 @@ class EternalReturnApiClientTest {
                           "name": "Commander's Armor"
                         }
                       ]
+                    }
+                    """);
+        });
+    }
+
+    private void createFailingDataContext(String metaType) {
+        server.createContext("/data/" + metaType, exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 500, """
+                    {
+                      "code": 500,
+                      "message": "Metadata API failed"
                     }
                     """);
         });
