@@ -326,16 +326,63 @@ class EternalReturnControllerTest {
 
         mockMvc.perform(get("/api/er/users/abc-123/games"))
                 .andExpect(status().isTooManyRequests())
+                .andExpect(jsonPath("$.timestamp").exists())
                 .andExpect(jsonPath("$.status").value(429))
                 .andExpect(jsonPath("$.error").value("Too Many Requests"))
                 .andExpect(jsonPath("$.message").value("Too Many Requests"));
     }
 
     @Test
+    void notFoundApiExceptionReturnsStructuredErrorResponse() throws Exception {
+        when(eternalReturnApiClient.getUserByNickname("unknown"))
+                .thenThrow(new EternalReturnApiException(
+                        HttpStatus.NOT_FOUND,
+                        "Eternal Return user not found."
+                ));
+
+        mockMvc.perform(get("/api/er/users/search").param("nickname", "unknown"))
+                .andExpect(status().isNotFound())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.status").value(404))
+                .andExpect(jsonPath("$.error").value("Not Found"))
+                .andExpect(jsonPath("$.message").value("Eternal Return user not found."));
+    }
+
+    @Test
     void missingRequiredQueryParameterReturnsBadRequest() throws Exception {
         mockMvc.perform(get("/api/er/users/search"))
                 .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.timestamp").exists())
                 .andExpect(jsonPath("$.status").value(400))
-                .andExpect(jsonPath("$.error").value("Bad Request"));
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Required request parameter 'nickname' for method parameter type String is not present"));
+    }
+
+    @Test
+    void invalidQueryParameterTypeReturnsBadRequest() throws Exception {
+        mockMvc.perform(get("/api/er/users/abc-123/rank")
+                        .param("seasonId", "not-a-number")
+                        .param("matchingTeamMode", "1"))
+                .andExpect(status().isBadRequest())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.status").value(400))
+                .andExpect(jsonPath("$.error").value("Bad Request"))
+                .andExpect(jsonPath("$.message").value("Invalid value 'not-a-number' for request parameter 'seasonId'. Expected type: int."));
+    }
+
+    @Test
+    void apiKeyConfigurationErrorReturnsStructuredErrorResponse() throws Exception {
+        when(eternalReturnApiClient.getUserByNickname("testUser"))
+                .thenThrow(new EternalReturnApiException(
+                        HttpStatus.INTERNAL_SERVER_ERROR,
+                        "ER_API_KEY environment variable is not configured."
+                ));
+
+        mockMvc.perform(get("/api/er/users/search").param("nickname", "testUser"))
+                .andExpect(status().isInternalServerError())
+                .andExpect(jsonPath("$.timestamp").exists())
+                .andExpect(jsonPath("$.status").value(500))
+                .andExpect(jsonPath("$.error").value("Internal Server Error"))
+                .andExpect(jsonPath("$.message").value("ER_API_KEY environment variable is not configured."));
     }
 }

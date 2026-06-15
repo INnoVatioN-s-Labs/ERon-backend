@@ -6,6 +6,59 @@
 
 ---
 
+## 2026-06-15
+
+### 작업 요약
+
+- ER API 연동 실패 시 내려가는 공통 JSON 에러 응답 형식을 테스트로 보강했다.
+- 필수 query parameter 누락, 공식 ER API 429 응답, API key 미설정 상황이 모두 같은 에러 응답 구조를 사용하도록 검증했다.
+- 현재 백엔드 API 엔드포인트와 에러 응답 예시를 문서화했다.
+
+### 현재 제공하는 API
+
+```text
+GET /api/er/users/search?nickname={nickname}
+GET /api/er/users/overview?nickname={nickname}&seasonId={seasonId}&matchingTeamMode={matchingTeamMode}
+GET /api/er/users/{userId}/stats?seasonId={seasonId}
+GET /api/er/users/{userId}/games
+GET /api/er/users/{userId}/rank?seasonId={seasonId}&matchingTeamMode={matchingTeamMode}
+GET /api/er/games/{gameId}
+GET /api/er/data/{metaType}
+```
+
+### 에러 응답 형식
+
+모든 컨트롤러 에러 응답은 `ApiErrorResponse` 형식으로 내려간다.
+
+```json
+{
+  "timestamp": "2026-06-15T12:00:00Z",
+  "status": 429,
+  "error": "Too Many Requests",
+  "message": "Too Many Requests"
+}
+```
+
+검증한 에러 케이스:
+
+- `/api/er/users/search` 요청에서 `nickname`이 누락되면 `400 Bad Request`를 반환한다.
+- 닉네임 검색 결과가 없으면 `404 Not Found`를 반환한다.
+- `seasonId` 같은 숫자 query parameter에 숫자가 아닌 값이 들어오면 `400 Bad Request`를 반환한다.
+- 공식 ER API가 `429 Too Many Requests`를 반환하면 백엔드도 `429`와 동일한 JSON 구조를 반환한다.
+- `ER_API_KEY`가 설정되지 않으면 외부 API 호출 전에 `500 Internal Server Error`와 명확한 메시지를 반환한다.
+
+### 추가한 테스트
+
+#### `src/test/java/com/toyproject/eron/erapi/EternalReturnControllerTest.java`
+
+- `apiExceptionReturnsStructuredErrorResponse`
+- `notFoundApiExceptionReturnsStructuredErrorResponse`
+- `missingRequiredQueryParameterReturnsBadRequest`
+- `invalidQueryParameterTypeReturnsBadRequest`
+- `apiKeyConfigurationErrorReturnsStructuredErrorResponse`
+
+---
+
 ## 2026-06-01
 
 ### 작업 요약
