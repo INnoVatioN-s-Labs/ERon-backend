@@ -183,6 +183,42 @@ class EternalReturnApiClientTest {
     }
 
     @Test
+    void apiCharacterNameOverridesLocalFallback() {
+        server.createContext("/user/games/uid/abc-123", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "userGames": [
+                        {
+                          "gameId": 98765,
+                          "nickname": "testUser",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 68,
+                          "gameRank": 3
+                        }
+                      ],
+                      "next": 98765
+                    }
+                    """);
+        });
+        createCharacterDataContextWithAlonsoOverride();
+
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        UserGamesResponse response = client.getUserGames("abc-123");
+
+        assertThat(response.games())
+                .singleElement()
+                .satisfies(game -> {
+                    assertThat(game.characterNum()).isEqualTo(68);
+                    assertThat(game.characterName()).isEqualTo("Api Alonso");
+                });
+    }
+
+    @Test
     void getUserRankSendsApiKeyAndReturnsRank() {
         server.createContext("/rank/uid/abc-123/28/1", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
@@ -605,6 +641,24 @@ class EternalReturnApiClientTest {
                         {
                           "code": 45,
                           "name": "Celine"
+                        }
+                      ]
+                    }
+                    """);
+        });
+    }
+
+    private void createCharacterDataContextWithAlonsoOverride() {
+        server.createContext("/data/Character", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "message": "Success",
+                      "data": [
+                        {
+                          "code": 68,
+                          "name": "Api Alonso"
                         }
                       ]
                     }

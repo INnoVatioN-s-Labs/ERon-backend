@@ -29,8 +29,8 @@ public class EternalReturnApiClient {
     private static final ParameterizedTypeReference<Map<String, Object>> MAP_RESPONSE_TYPE =
             new ParameterizedTypeReference<>() {
             };
-    private static final Map<Integer, String> LOCAL_CHARACTER_NAMES_BY_CODE = Map.of(
-            68, "Alonso"
+    private static final Map<Integer, String> LOCAL_CHARACTER_NAMES_BY_CODE = Map.ofEntries(
+            Map.entry(68, "Alonso")
     );
 
     private final RestClient restClient;
