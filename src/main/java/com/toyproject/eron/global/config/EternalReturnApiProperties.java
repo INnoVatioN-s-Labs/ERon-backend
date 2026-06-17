@@ -11,6 +11,7 @@ public class EternalReturnApiProperties {
     private String key;
     private Duration connectTimeout = Duration.ofSeconds(3);
     private Duration readTimeout = Duration.ofSeconds(10);
+    private Duration userGamesCacheTtl = Duration.ofSeconds(30);
 
     public String getBaseUrl() {
         return baseUrl;
@@ -42,5 +43,13 @@ public class EternalReturnApiProperties {
 
     public void setReadTimeout(Duration readTimeout) {
         this.readTimeout = readTimeout;
+    }
+
+    public Duration getUserGamesCacheTtl() {
+        return userGamesCacheTtl;
+    }
+
+    public void setUserGamesCacheTtl(Duration userGamesCacheTtl) {
+        this.userGamesCacheTtl = userGamesCacheTtl;
     }
 }

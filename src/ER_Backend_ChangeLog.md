@@ -6,6 +6,46 @@
 
 ---
 
+## 2026-06-17
+
+### 작업 요약
+
+- 최근 게임 조회(`getUserGames`)에 in-memory TTL 캐시를 추가했다.
+- 같은 `userId`로 반복 조회하면 설정된 TTL 동안 공식 ER API 호출을 재사용한다.
+- 캐시 TTL은 `eternal-return.api.user-games-cache-ttl` 설정으로 조정할 수 있다.
+- TTL이 `0` 또는 음수면 캐시를 사용하지 않고 매번 공식 API를 호출한다.
+
+### 수정한 설정
+
+#### `src/main/resources/application.properties`
+
+```properties
+eternal-return.api.user-games-cache-ttl=30s
+```
+
+#### `src/main/java/com/toyproject/eron/global/config/EternalReturnApiProperties.java`
+
+- `userGamesCacheTtl` 설정 값을 추가했다.
+- 기본값은 30초다.
+
+### 수정한 코드
+
+#### `src/main/java/com/toyproject/eron/erapi/EternalReturnService.java`
+
+- `getUserGames(userId)` 응답을 `userId` 기준으로 캐싱한다.
+- 캐시가 살아 있으면 `EternalReturnApiClient`를 다시 호출하지 않고 캐시된 `UserGamesResponse`를 반환한다.
+- 캐시가 만료되면 공식 API를 다시 호출하고 캐시를 갱신한다.
+
+### 추가한 테스트
+
+#### `src/test/java/com/toyproject/eron/erapi/EternalReturnServiceTest.java`
+
+- `getUserGamesCachesResponseWithinTtl`
+- `getUserGamesReloadsResponseAfterCacheExpires`
+- `getUserGamesBypassesCacheWhenTtlIsZero`
+
+---
+
 ## 2026-06-15
 
 ### 작업 요약
