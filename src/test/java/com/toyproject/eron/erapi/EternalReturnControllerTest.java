@@ -136,6 +136,66 @@ class EternalReturnControllerTest {
     }
 
     @Test
+    void getTopRankingsReturnsRankings() throws Exception {
+        when(eternalReturnService.getTopRankings(39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "topRanks", List.of(
+                                Map.of(
+                                        "rank", 1,
+                                        "nickname", "topUser",
+                                        "rankScore", 8320,
+                                        "tier", "이터니티"
+                                )
+                        )
+                ));
+
+        mockMvc.perform(get("/api/er/rankings/top")
+                        .param("seasonId", "39")
+                        .param("matchingTeamMode", "3"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.topRanks[0].rank").value(1))
+                .andExpect(jsonPath("$.topRanks[0].nickname").value("topUser"))
+                .andExpect(jsonPath("$.topRanks[0].rankScore").value(8320))
+                .andExpect(jsonPath("$.topRanks[0].tier").value("이터니티"));
+    }
+
+    @Test
+    void getCharacterMetaReturnsCharacterStats() throws Exception {
+        when(eternalReturnService.getCharacterMeta(39, 3, "이터니티"))
+                .thenReturn(Map.of(
+                        "seasonId", 39,
+                        "matchingTeamMode", 3,
+                        "tier", "이터니티",
+                        "sampleGameCount", 3,
+                        "characters", List.of(Map.of(
+                                "characterNum", 1,
+                                "characterName", "Jackie",
+                                "gameCount", 2,
+                                "pickRate", 0.67,
+                                "top3Rate", 0.5,
+                                "averageRank", 2.5,
+                                "averageKills", 4.0
+                        ))
+                ));
+
+        mockMvc.perform(get("/api/er/meta/characters")
+                        .param("seasonId", "39")
+                        .param("matchingTeamMode", "3")
+                        .param("tier", "이터니티"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.seasonId").value(39))
+                .andExpect(jsonPath("$.matchingTeamMode").value(3))
+                .andExpect(jsonPath("$.tier").value("이터니티"))
+                .andExpect(jsonPath("$.sampleGameCount").value(3))
+                .andExpect(jsonPath("$.characters[0].characterNum").value(1))
+                .andExpect(jsonPath("$.characters[0].characterName").value("Jackie"))
+                .andExpect(jsonPath("$.characters[0].pickRate").value(0.67))
+                .andExpect(jsonPath("$.characters[0].averageRank").value(2.5));
+    }
+
+    @Test
     void getUserOverviewReturnsUserRankAndGames() throws Exception {
         when(eternalReturnService.getUserOverview("testUser", 28, 1))
                 .thenReturn(new UserOverviewResponse(

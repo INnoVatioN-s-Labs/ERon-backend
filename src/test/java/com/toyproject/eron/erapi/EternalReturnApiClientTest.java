@@ -160,7 +160,7 @@ class EternalReturnApiClientTest {
                     assertThat(game.matchingMode()).isEqualTo(3);
                     assertThat(game.matchingTeamMode()).isEqualTo(3);
                     assertThat(game.characterNum()).isEqualTo(68);
-                    assertThat(game.characterName()).isEqualTo("Alonso");
+                    assertThat(game.characterName()).isEqualTo("알론소");
                     assertThat(game.gameRank()).isEqualTo(3);
                     assertThat(game.playerKill()).isEqualTo(5);
                     assertThat(game.playerAssistant()).isEqualTo(2);
@@ -183,7 +183,7 @@ class EternalReturnApiClientTest {
     }
 
     @Test
-    void apiCharacterNameOverridesLocalFallback() {
+    void localKoreanCharacterNameOverridesApiName() {
         server.createContext("/user/games/uid/abc-123", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
             writeJson(exchange, 200, """
@@ -214,7 +214,7 @@ class EternalReturnApiClientTest {
                 .singleElement()
                 .satisfies(game -> {
                     assertThat(game.characterNum()).isEqualTo(68);
-                    assertThat(game.characterName()).isEqualTo("Api Alonso");
+                    assertThat(game.characterName()).isEqualTo("알론소");
                 });
     }
 
@@ -276,7 +276,7 @@ class EternalReturnApiClientTest {
         UserGamesResponse response = client.getUserGames("abc-123");
 
         assertThat(response.games()).hasSize(2);
-        assertThat(response.games().get(0).characterName()).isEqualTo("Alonso");
+        assertThat(response.games().get(0).characterName()).isEqualTo("알론소");
         assertThat(response.games().get(1).characterName()).isEqualTo("Unknown Character (999)");
     }
 
@@ -308,6 +308,44 @@ class EternalReturnApiClientTest {
                 .containsEntry("mmr", 4321);
         assertThat(capturedRequests).hasSize(1);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/rank/uid/abc-123/28/1");
+        assertThat(capturedRequests.get(0).query()).isNull();
+        assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
+    }
+
+    @Test
+    void getTopRankingsSendsApiKeyAndReturnsRankings() {
+        server.createContext("/rank/top/39/3", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "topRanks": [
+                        {
+                          "rank": 1,
+                          "nickname": "topUser",
+                          "rankScore": 8320,
+                          "tier": "Eternity"
+                        }
+                      ]
+                    }
+                    """);
+        });
+
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        Map<String, Object> response = client.getTopRankings(39, 3);
+
+        assertThat(response).containsEntry("code", 200);
+        assertThat(response.get("topRanks"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+                .singleElement()
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("rank", 1)
+                .containsEntry("nickname", "topUser")
+                .containsEntry("rankScore", 8320)
+                .containsEntry("tier", "Eternity");
+        assertThat(capturedRequests).hasSize(1);
+        assertThat(capturedRequests.get(0).path()).isEqualTo("/rank/top/39/3");
         assertThat(capturedRequests.get(0).query()).isNull();
         assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
     }
@@ -420,7 +458,7 @@ class EternalReturnApiClientTest {
                     assertThat(participant.teamNumber()).isEqualTo(1);
                     assertThat(participant.gameRank()).isEqualTo(1);
                     assertThat(participant.characterNum()).isEqualTo(22);
-                    assertThat(participant.characterName()).isEqualTo("Luke");
+                    assertThat(participant.characterName()).isEqualTo("루크");
                     assertThat(participant.characterLevel()).isEqualTo(20);
                     assertThat(participant.playerKill()).isEqualTo(12);
                     assertThat(participant.playerAssistant()).isEqualTo(11);
@@ -450,7 +488,7 @@ class EternalReturnApiClientTest {
                 .element(1)
                 .satisfies(participant -> {
                     assertThat(participant.characterNum()).isEqualTo(68);
-                    assertThat(participant.characterName()).isEqualTo("Alonso");
+                    assertThat(participant.characterName()).isEqualTo("알론소");
                 });
         assertThat(capturedRequests).hasSize(4);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/games/98765");
@@ -540,11 +578,11 @@ class EternalReturnApiClientTest {
 
         assertThat(games.games())
                 .singleElement()
-                .satisfies(game -> assertThat(game.characterName()).isEqualTo("Jackie"));
+                .satisfies(game -> assertThat(game.characterName()).isEqualTo("재키"));
         assertThat(detail.participants())
                 .singleElement()
                 .satisfies(participant -> {
-                    assertThat(participant.characterName()).isEqualTo("Luke");
+                    assertThat(participant.characterName()).isEqualTo("루크");
                     assertThat(participant.equipment()).containsEntry(
                             "0",
                             new EquipmentSummary(114702, "Longbow", 6)
@@ -685,7 +723,7 @@ class EternalReturnApiClientTest {
                 .satisfies(game -> {
                     assertThat(game.gameId()).isEqualTo(98765);
                     assertThat(game.gameRank()).isEqualTo(3);
-                    assertThat(game.characterName()).isEqualTo("Alonso");
+                    assertThat(game.characterName()).isEqualTo("알론소");
                     assertThat(game.playerKill()).isEqualTo(5);
                 });
         assertThat(response.recentStats().gameCount()).isEqualTo(1);
@@ -700,7 +738,7 @@ class EternalReturnApiClientTest {
         assertThat(response.recentStats().averageDamageToPlayer()).isEqualTo(12345.0);
         assertThat(response.recentStats().totalMmrGain()).isNull();
         assertThat(response.recentStats().mostPlayedCharacterNum()).isEqualTo(68);
-        assertThat(response.recentStats().mostPlayedCharacterName()).isEqualTo("Alonso");
+        assertThat(response.recentStats().mostPlayedCharacterName()).isEqualTo("알론소");
         assertThat(capturedRequests).extracting(CapturedRequest::path)
                 .containsExactly(
                         "/user/nickname",

@@ -59,6 +59,23 @@ public class EternalReturnController {
         return eternalReturnService.getUserRank(userId, seasonId, matchingTeamMode);
     }
 
+    @GetMapping("/rankings/top")
+    public Map<String, Object> getTopRankings(
+            @RequestParam int seasonId,
+            @RequestParam int matchingTeamMode
+    ) {
+        return eternalReturnService.getTopRankings(seasonId, matchingTeamMode);
+    }
+
+    @GetMapping("/meta/characters")
+    public Map<String, Object> getCharacterMeta(
+            @RequestParam int seasonId,
+            @RequestParam int matchingTeamMode,
+            @RequestParam(defaultValue = "이터니티") String tier
+    ) {
+        return eternalReturnService.getCharacterMeta(seasonId, matchingTeamMode, tier);
+    }
+
     @GetMapping("/games/{gameId}")
     public GameDetailResponse getGame(@PathVariable int gameId) {
         return eternalReturnService.getGame(gameId);
