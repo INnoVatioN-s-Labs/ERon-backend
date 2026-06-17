@@ -27,21 +27,21 @@ import com.toyproject.eron.global.error.GlobalExceptionHandler;
 
 class EternalReturnControllerTest {
 
-    private EternalReturnApiClient eternalReturnApiClient;
+    private EternalReturnService eternalReturnService;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
-        eternalReturnApiClient = Mockito.mock(EternalReturnApiClient.class);
+        eternalReturnService = Mockito.mock(EternalReturnService.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new EternalReturnController(eternalReturnApiClient))
+                .standaloneSetup(new EternalReturnController(eternalReturnService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
 
     @Test
     void searchUserReturnsMappedUser() throws Exception {
-        when(eternalReturnApiClient.getUserByNickname("testUser"))
+        when(eternalReturnService.getUserByNickname("testUser"))
                 .thenReturn(new UserSearchResponse(
                         "abc-123",
                         "testUser",
@@ -63,7 +63,7 @@ class EternalReturnControllerTest {
 
     @Test
     void getUserGamesReturnsMatchHistory() throws Exception {
-        when(eternalReturnApiClient.getUserGames("abc-123"))
+        when(eternalReturnService.getUserGames("abc-123"))
                 .thenReturn(new UserGamesResponse(
                         List.of(new UserGameSummary(
                                 98765,
@@ -115,7 +115,7 @@ class EternalReturnControllerTest {
 
     @Test
     void getUserRankReturnsRank() throws Exception {
-        when(eternalReturnApiClient.getUserRank("abc-123", 28, 1))
+        when(eternalReturnService.getUserRank("abc-123", 28, 1))
                 .thenReturn(Map.of(
                         "code", 200,
                         "userRank", Map.of(
@@ -137,7 +137,7 @@ class EternalReturnControllerTest {
 
     @Test
     void getUserOverviewReturnsUserRankAndGames() throws Exception {
-        when(eternalReturnApiClient.getUserOverview("testUser", 28, 1))
+        when(eternalReturnService.getUserOverview("testUser", 28, 1))
                 .thenReturn(new UserOverviewResponse(
                         new UserSearchResponse(
                                 "abc-123",
@@ -224,7 +224,7 @@ class EternalReturnControllerTest {
 
     @Test
     void getGameReturnsMappedGameDetail() throws Exception {
-        when(eternalReturnApiClient.getGame(98765))
+        when(eternalReturnService.getGame(98765))
                 .thenReturn(new GameDetailResponse(
                         98765,
                         39,
@@ -318,7 +318,7 @@ class EternalReturnControllerTest {
 
     @Test
     void apiExceptionReturnsStructuredErrorResponse() throws Exception {
-        when(eternalReturnApiClient.getUserGames("abc-123"))
+        when(eternalReturnService.getUserGames("abc-123"))
                 .thenThrow(new EternalReturnApiException(
                         HttpStatus.TOO_MANY_REQUESTS,
                         "Too Many Requests"
@@ -334,7 +334,7 @@ class EternalReturnControllerTest {
 
     @Test
     void notFoundApiExceptionReturnsStructuredErrorResponse() throws Exception {
-        when(eternalReturnApiClient.getUserByNickname("unknown"))
+        when(eternalReturnService.getUserByNickname("unknown"))
                 .thenThrow(new EternalReturnApiException(
                         HttpStatus.NOT_FOUND,
                         "Eternal Return user not found."
@@ -372,7 +372,7 @@ class EternalReturnControllerTest {
 
     @Test
     void apiKeyConfigurationErrorReturnsStructuredErrorResponse() throws Exception {
-        when(eternalReturnApiClient.getUserByNickname("testUser"))
+        when(eternalReturnService.getUserByNickname("testUser"))
                 .thenThrow(new EternalReturnApiException(
                         HttpStatus.INTERNAL_SERVER_ERROR,
                         "ER_API_KEY environment variable is not configured."
