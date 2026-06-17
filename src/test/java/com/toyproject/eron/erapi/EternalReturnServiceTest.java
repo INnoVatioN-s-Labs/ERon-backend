@@ -15,6 +15,7 @@ import java.util.Map;
 
 import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
+import org.springframework.http.HttpStatus;
 
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
@@ -86,30 +87,202 @@ class EternalReturnServiceTest {
         verify(eternalReturnApiClient, times(2)).getUserGames("abc-123");
     }
 
+    @Test
+    void getTopRankingsAddsRecentStatsForTopTenWithoutGameCount() {
+        when(eternalReturnApiClient.getTopRankings(39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "topRanks", List.of(Map.of(
+                                "rank", 1,
+                                "nickname", "topUser",
+                                "rankScore", 8320
+                        ))
+                ));
+        when(eternalReturnApiClient.getUserByNickname("topUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "topUser", Map.of()));
+        when(eternalReturnApiClient.getUserGames("abc-123")).thenReturn(userGamesResponse(98765));
+
+        Map<String, Object> response = eternalReturnService.getTopRankings(39, 3);
+
+        assertThat(response).containsEntry("code", 200);
+        assertThat(response.get("topRanks"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+                .singleElement()
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("rank", 1)
+                .containsEntry("nickname", "topUser")
+                .containsEntry("tier", "이터니티")
+                .containsEntry("averageRank", 3.0)
+                .containsEntry("top3Count", 1)
+                .containsEntry("top3Rate", 1.0)
+                .containsEntry("averageKills", 5.0)
+                .containsEntry("mostPlayedCharacterName", "Jackie")
+                .doesNotContainKey("gameCount")
+                .doesNotContainKey("recentStats");
+        verify(eternalReturnApiClient).getUserByNickname("topUser");
+        verify(eternalReturnApiClient).getUserGames("abc-123");
+    }
+
+    @Test
+    void getTopRankingsKeepsRankingWithZeroGamesWhenUserCannotBeResolved() {
+        when(eternalReturnApiClient.getTopRankings(39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "topRanks", List.of(Map.of(
+                                "rank", 1,
+                                "rankScore", 8320
+                        ))
+                ));
+
+        Map<String, Object> response = eternalReturnService.getTopRankings(39, 3);
+
+        assertThat(response.get("topRanks"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+                .singleElement()
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("rank", 1)
+                .containsEntry("top3Count", 0)
+                .containsEntry("top3Rate", 0.0)
+                .doesNotContainKey("gameCount")
+                .doesNotContainKey("recentStats");
+    }
+
+    @Test
+    void getTopRankingsDoesNotResolveNicknamesAfterTopTen() {
+        List<Map<String, Object>> topRanks = java.util.stream.IntStream.rangeClosed(1, 11)
+                .mapToObj(rank -> Map.<String, Object>of(
+                        "rank", rank,
+                        "nickname", "topUser" + rank,
+                        "rankScore", 9000 - rank
+                ))
+                .toList();
+        when(eternalReturnApiClient.getTopRankings(39, 3))
+                .thenReturn(Map.of("code", 200, "topRanks", topRanks));
+        for (int rank = 1; rank <= 10; rank++) {
+            String nickname = "topUser" + rank;
+            String userId = "abc-" + rank;
+            when(eternalReturnApiClient.getUserByNickname(nickname))
+                    .thenReturn(new UserSearchResponse(userId, nickname, Map.of()));
+            when(eternalReturnApiClient.getUserGames(userId)).thenReturn(userGamesResponse(98765 + rank));
+        }
+
+        eternalReturnService.getTopRankings(39, 3);
+
+        verify(eternalReturnApiClient, times(0)).getUserByNickname("topUser11");
+        verify(eternalReturnApiClient, times(0)).getUserGames("abc-11");
+    }
+
+    @Test
+    void getTopRankingsContinuesAfterSingleUserFailure() {
+        when(eternalReturnApiClient.getTopRankings(39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "topRanks", List.of(
+                                Map.of("rank", 1, "nickname", "topUser1", "rankScore", 8320),
+                                Map.of("rank", 2, "nickname", "topUser2", "rankScore", 8200),
+                                Map.of("rank", 3, "nickname", "topUser3", "rankScore", 8100)
+                        )
+                ));
+        when(eternalReturnApiClient.getUserByNickname("topUser1"))
+                .thenReturn(new UserSearchResponse("abc-1", "topUser1", Map.of()));
+        when(eternalReturnApiClient.getUserGames("abc-1")).thenReturn(userGamesResponse(98765));
+        when(eternalReturnApiClient.getUserByNickname("topUser2"))
+                .thenThrow(new EternalReturnApiException(HttpStatus.NOT_FOUND, "not found"));
+        when(eternalReturnApiClient.getUserByNickname("topUser3"))
+                .thenReturn(new UserSearchResponse("abc-3", "topUser3", Map.of()));
+        when(eternalReturnApiClient.getUserGames("abc-3")).thenReturn(userGamesResponse(98767));
+
+        Map<String, Object> response = eternalReturnService.getTopRankings(39, 3);
+
+        assertThat(response.get("topRanks"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+                .element(2)
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("averageRank", 3.0)
+                .containsEntry("averageKills", 5.0);
+        verify(eternalReturnApiClient).getUserByNickname("topUser3");
+        verify(eternalReturnApiClient).getUserGames("abc-3");
+    }
+
+    @Test
+    void getCharacterMetaAggregatesTopRankingGamesByCharacter() {
+        when(eternalReturnApiClient.getTopRankings(39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "topRanks", List.of(Map.of(
+                                "rank", 1,
+                                "nickname", "topUser",
+                                "rankScore", 8320,
+                                "tier", "이터니티"
+                        ))
+                ));
+        when(eternalReturnApiClient.getUserByNickname("topUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "topUser", Map.of()));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(
+                        List.of(
+                                userGame(98765, 1, "Jackie", 1, 6),
+                                userGame(98766, 1, "Jackie", 4, 2),
+                                userGame(98767, 22, "Luke", 3, 5)
+                        ),
+                        null
+                ));
+
+        Map<String, Object> response = eternalReturnService.getCharacterMeta(39, 3, "이터니티");
+
+        assertThat(response)
+                .containsEntry("seasonId", 39)
+                .containsEntry("matchingTeamMode", 3)
+                .containsEntry("tier", "이터니티")
+                .containsEntry("sampleGameCount", 3);
+        assertThat(response.get("characters"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+                .first()
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("characterNum", 1)
+                .containsEntry("characterName", "Jackie")
+                .containsEntry("gameCount", 2)
+                .containsEntry("pickRate", 0.67)
+                .containsEntry("top3Count", 1)
+                .containsEntry("top3Rate", 0.5)
+                .containsEntry("averageRank", 2.5)
+                .containsEntry("averageKills", 4.0);
+    }
+
     private UserGamesResponse userGamesResponse(int gameId) {
         return new UserGamesResponse(
-                List.of(new UserGameSummary(
-                        gameId,
-                        "testUser",
-                        39,
-                        3,
-                        3,
-                        1,
-                        "Jackie",
-                        3,
-                        5,
-                        2,
-                        1,
-                        12345,
-                        7,
-                        1620,
-                        1574,
-                        46,
-                        1620,
-                        "2026-05-30T23:15:29.029+0900",
-                        551
-                )),
+                List.of(userGame(gameId, 1, "Jackie", 3, 5)),
                 gameId
+        );
+    }
+
+    private UserGameSummary userGame(
+            int gameId,
+            int characterNum,
+            String characterName,
+            int gameRank,
+            int playerKill
+    ) {
+        return new UserGameSummary(
+                gameId,
+                "testUser",
+                39,
+                3,
+                3,
+                characterNum,
+                characterName,
+                gameRank,
+                playerKill,
+                2,
+                1,
+                12345,
+                7,
+                1620,
+                1574,
+                46,
+                1620,
+                "2026-05-30T23:15:29.029+0900",
+                551
         );
     }
 
