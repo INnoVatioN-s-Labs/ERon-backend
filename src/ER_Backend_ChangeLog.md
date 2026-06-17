@@ -13,6 +13,8 @@
 - ER API 연동 실패 시 내려가는 공통 JSON 에러 응답 형식을 테스트로 보강했다.
 - 필수 query parameter 누락, 공식 ER API 429 응답, API key 미설정 상황이 모두 같은 에러 응답 구조를 사용하도록 검증했다.
 - 현재 백엔드 API 엔드포인트와 에러 응답 예시를 문서화했다.
+- 컨트롤러와 ER API 클라이언트 사이에 `EternalReturnService` 계층을 추가했다.
+- 컨트롤러는 서비스에만 의존하도록 변경해 이후 캐싱, DB 저장, 통계 가공 로직을 서비스 계층에서 확장할 수 있게 했다.
 
 ### 현재 제공하는 API
 
@@ -48,6 +50,11 @@ GET /api/er/data/{metaType}
 - `ER_API_KEY`가 설정되지 않으면 외부 API 호출 전에 `500 Internal Server Error`와 명확한 메시지를 반환한다.
 
 ### 추가한 테스트
+
+#### `src/test/java/com/toyproject/eron/erapi/EternalReturnServiceTest.java`
+
+- `getUserByNicknameDelegatesToApiClient`
+- `getUserGamesDelegatesToApiClient`
 
 #### `src/test/java/com/toyproject/eron/erapi/EternalReturnControllerTest.java`
 

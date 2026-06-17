@@ -17,15 +17,15 @@ import com.toyproject.eron.erapi.dto.UserSearchResponse;
 @RequestMapping("/api/er")
 public class EternalReturnController {
 
-    private final EternalReturnApiClient eternalReturnApiClient;
+    private final EternalReturnService eternalReturnService;
 
-    public EternalReturnController(EternalReturnApiClient eternalReturnApiClient) {
-        this.eternalReturnApiClient = eternalReturnApiClient;
+    public EternalReturnController(EternalReturnService eternalReturnService) {
+        this.eternalReturnService = eternalReturnService;
     }
 
     @GetMapping("/users/search")
     public UserSearchResponse searchUser(@RequestParam String nickname) {
-        return eternalReturnApiClient.getUserByNickname(nickname);
+        return eternalReturnService.getUserByNickname(nickname);
     }
 
     @GetMapping("/users/overview")
@@ -34,7 +34,7 @@ public class EternalReturnController {
             @RequestParam int seasonId,
             @RequestParam int matchingTeamMode
     ) {
-        return eternalReturnApiClient.getUserOverview(nickname, seasonId, matchingTeamMode);
+        return eternalReturnService.getUserOverview(nickname, seasonId, matchingTeamMode);
     }
 
     @GetMapping("/users/{userId}/stats")
@@ -42,12 +42,12 @@ public class EternalReturnController {
             @PathVariable String userId,
             @RequestParam int seasonId
     ) {
-        return eternalReturnApiClient.getUserStats(userId, seasonId);
+        return eternalReturnService.getUserStats(userId, seasonId);
     }
 
     @GetMapping("/users/{userId}/games")
     public UserGamesResponse getUserGames(@PathVariable String userId) {
-        return eternalReturnApiClient.getUserGames(userId);
+        return eternalReturnService.getUserGames(userId);
     }
 
     @GetMapping("/users/{userId}/rank")
@@ -56,16 +56,16 @@ public class EternalReturnController {
             @RequestParam int seasonId,
             @RequestParam int matchingTeamMode
     ) {
-        return eternalReturnApiClient.getUserRank(userId, seasonId, matchingTeamMode);
+        return eternalReturnService.getUserRank(userId, seasonId, matchingTeamMode);
     }
 
     @GetMapping("/games/{gameId}")
     public GameDetailResponse getGame(@PathVariable int gameId) {
-        return eternalReturnApiClient.getGame(gameId);
+        return eternalReturnService.getGame(gameId);
     }
 
     @GetMapping("/data/{metaType}")
     public Map<String, Object> getDataTable(@PathVariable String metaType) {
-        return eternalReturnApiClient.getDataTable(metaType);
+        return eternalReturnService.getDataTable(metaType);
     }
 }
