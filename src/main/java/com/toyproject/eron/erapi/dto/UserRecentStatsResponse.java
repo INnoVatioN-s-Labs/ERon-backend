@@ -25,7 +25,10 @@ public record UserRecentStatsResponse(
 ) {
 
     public static UserRecentStatsResponse from(UserGamesResponse gamesResponse) {
-        List<UserGameSummary> games = gamesResponse.games();
+        return from(gamesResponse.games());
+    }
+
+    public static UserRecentStatsResponse from(List<UserGameSummary> games) {
         int gameCount = games.size();
 
         if (gameCount == 0) {

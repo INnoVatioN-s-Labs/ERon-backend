@@ -97,6 +97,8 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.games[0].seasonId").value(39))
                 .andExpect(jsonPath("$.games[0].matchingMode").value(3))
                 .andExpect(jsonPath("$.games[0].matchingTeamMode").value(3))
+                .andExpect(jsonPath("$.games[0].modeKey").value("ranked"))
+                .andExpect(jsonPath("$.games[0].modeName").value("랭크"))
                 .andExpect(jsonPath("$.games[0].characterNum").value(1))
                 .andExpect(jsonPath("$.games[0].characterName").value("Jackie"))
                 .andExpect(jsonPath("$.games[0].gameRank").value(3))
@@ -110,7 +112,95 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.games[0].mmrGain").value(46))
                 .andExpect(jsonPath("$.games[0].mmrAfter").value(1620))
                 .andExpect(jsonPath("$.games[0].startDtm").value("2026-05-30T23:15:29.029+0900"))
-                .andExpect(jsonPath("$.games[0].playTime").value(551));
+                .andExpect(jsonPath("$.games[0].playTime").value(551))
+                .andExpect(jsonPath("$.statsByMode.ranked.modeName").value("랭크"))
+                .andExpect(jsonPath("$.statsByMode.ranked.stats.gameCount").value(1))
+                .andExpect(jsonPath("$.statsByMode.ranked.stats.averageKills").value(5.0));
+    }
+
+    @Test
+    void getUserGamesReturnsStatsByMatchMode() throws Exception {
+        when(eternalReturnService.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(
+                        List.of(
+                                new UserGameSummary(
+                                        98765,
+                                        "testUser",
+                                        0,
+                                        2,
+                                        3,
+                                        1,
+                                        "Jackie",
+                                        2,
+                                        4,
+                                        2,
+                                        1,
+                                        10000,
+                                        8,
+                                        0,
+                                        null,
+                                        null,
+                                        null,
+                                        "2026-05-30T23:15:29.029+0900",
+                                        551
+                                ),
+                                new UserGameSummary(
+                                        98766,
+                                        "testUser",
+                                        0,
+                                        6,
+                                        4,
+                                        45,
+                                        "Mai",
+                                        1,
+                                        7,
+                                        12,
+                                        3,
+                                        20000,
+                                        27,
+                                        0,
+                                        null,
+                                        null,
+                                        null,
+                                        "2026-05-30T23:25:29.029+0900",
+                                        650
+                                ),
+                                new UserGameSummary(
+                                        98767,
+                                        "testUser",
+                                        0,
+                                        2,
+                                        1,
+                                        22,
+                                        "Luke",
+                                        4,
+                                        2,
+                                        1,
+                                        2,
+                                        8000,
+                                        3,
+                                        0,
+                                        null,
+                                        null,
+                                        null,
+                                        "2026-05-30T23:35:29.029+0900",
+                                        600
+                                )
+                        ),
+                        98767
+                ));
+
+        mockMvc.perform(get("/api/er/users/abc-123/games"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.games[0].modeKey").value("normal"))
+                .andExpect(jsonPath("$.games[0].modeName").value("일반"))
+                .andExpect(jsonPath("$.games[1].modeKey").value("cobalt"))
+                .andExpect(jsonPath("$.games[1].modeName").value("코발트"))
+                .andExpect(jsonPath("$.games[2].modeKey").value("loneWolf"))
+                .andExpect(jsonPath("$.games[2].modeName").value("론 울프"))
+                .andExpect(jsonPath("$.statsByMode.normal.stats.gameCount").value(1))
+                .andExpect(jsonPath("$.statsByMode.cobalt.stats.gameCount").value(1))
+                .andExpect(jsonPath("$.statsByMode.loneWolf.stats.gameCount").value(1));
     }
 
     @Test
