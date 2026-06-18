@@ -25,11 +25,13 @@ import com.toyproject.eron.global.config.EternalReturnApiProperties;
 public class EternalReturnService {
 
     private static final int RANKING_STATS_ENRICH_LIMIT = 10;
+    private static final int USER_GAMES_DETAIL_LIMIT_MAX = 5;
 
     private final EternalReturnApiClient eternalReturnApiClient;
     private final Duration userGamesCacheTtl;
     private final Clock clock;
     private final Map<String, CacheEntry<UserGamesResponse>> userGamesCache = new ConcurrentHashMap<>();
+    private final Map<Integer, CacheEntry<GameDetailResponse>> gameDetailCache = new ConcurrentHashMap<>();
     private final Map<String, CacheEntry<Map<String, Object>>> topRankingsCache = new ConcurrentHashMap<>();
     private final Map<String, CacheEntry<UserSearchResponse>> userSearchCache = new ConcurrentHashMap<>();
 
@@ -72,6 +74,23 @@ public class EternalReturnService {
         return response;
     }
 
+    public UserGamesResponse getUserGames(String userId, boolean includeDetails, int detailLimit) {
+        UserGamesResponse response = getUserGames(userId);
+        if (!includeDetails || detailLimit <= 0 || response.games().isEmpty()) {
+            return response;
+        }
+
+        int clampedDetailLimit = Math.min(detailLimit, USER_GAMES_DETAIL_LIMIT_MAX);
+        Map<Integer, GameDetailResponse> detailsByGameId = new LinkedHashMap<>();
+        for (int index = 0; index < response.games().size() && index < clampedDetailLimit; index++) {
+            if (!addGameDetail(detailsByGameId, response.games().get(index).gameId())) {
+                break;
+            }
+        }
+
+        return new UserGamesResponse(response.games(), response.next(), detailsByGameId);
+    }
+
     public Map<String, Object> getUserRank(String userId, int seasonId, int matchingTeamMode) {
         return eternalReturnApiClient.getUserRank(userId, seasonId, matchingTeamMode);
     }
@@ -110,7 +129,7 @@ public class EternalReturnService {
     }
 
     public GameDetailResponse getGame(int gameId) {
-        return eternalReturnApiClient.getGame(gameId);
+        return getCachedGame(gameId);
     }
 
     public Map<String, Object> getDataTable(String metaType) {
@@ -140,6 +159,35 @@ public class EternalReturnService {
 
         Map<String, Object> response = eternalReturnApiClient.getTopRankings(seasonId, matchingTeamMode);
         topRankingsCache.put(cacheKey, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
+        return response;
+    }
+
+    private boolean addGameDetail(Map<Integer, GameDetailResponse> detailsByGameId, Integer gameId) {
+        if (gameId == null) {
+            return true;
+        }
+
+        try {
+            detailsByGameId.put(gameId, getCachedGame(gameId));
+            return true;
+        } catch (EternalReturnApiException exception) {
+            return exception.getStatus() != HttpStatus.TOO_MANY_REQUESTS;
+        }
+    }
+
+    private GameDetailResponse getCachedGame(int gameId) {
+        if (userGamesCacheTtl.isZero() || userGamesCacheTtl.isNegative()) {
+            return eternalReturnApiClient.getGame(gameId);
+        }
+
+        Instant now = clock.instant();
+        CacheEntry<GameDetailResponse> cached = gameDetailCache.get(gameId);
+        if (cached != null && cached.expiresAt().isAfter(now)) {
+            return cached.value();
+        }
+
+        GameDetailResponse response = eternalReturnApiClient.getGame(gameId);
+        gameDetailCache.put(gameId, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
         return response;
     }
 

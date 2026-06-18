@@ -8,8 +8,13 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record UserGamesResponse(
         List<UserGameSummary> games,
-        Integer next
+        Integer next,
+        Map<Integer, GameDetailResponse> detailsByGameId
 ) {
+
+    public UserGamesResponse(List<UserGameSummary> games, Integer next) {
+        this(games, next, Map.of());
+    }
 
     @JsonProperty("statsByMode")
     public Map<String, ModeStatsResponse> statsByMode() {
