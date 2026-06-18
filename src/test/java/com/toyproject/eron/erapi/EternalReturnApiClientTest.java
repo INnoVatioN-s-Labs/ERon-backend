@@ -277,7 +277,7 @@ class EternalReturnApiClientTest {
 
         assertThat(response.games()).hasSize(2);
         assertThat(response.games().get(0).characterName()).isEqualTo("알론소");
-        assertThat(response.games().get(1).characterName()).isEqualTo("Unknown Character (999)");
+        assertThat(response.games().get(1).characterName()).isEqualTo("실험체 999");
     }
 
     @Test
@@ -646,7 +646,7 @@ class EternalReturnApiClientTest {
                 .singleElement()
                 .satisfies(participant -> assertThat(participant.equipment())
                         .containsEntry("0", new EquipmentSummary(114702, "Unknown Item (114702)", 6))
-                        .containsEntry("1", new EquipmentSummary(109501, "Unknown Item (109501)", 5)));
+                        .containsEntry("1", new EquipmentSummary(109501, "혈화구절편", 5)));
     }
 
     @Test

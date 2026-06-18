@@ -1,8 +1,13 @@
 package com.toyproject.eron.erapi;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
 import org.springframework.http.HttpStatus;
@@ -29,6 +34,8 @@ public class EternalReturnApiClient {
     private static final ParameterizedTypeReference<Map<String, Object>> MAP_RESPONSE_TYPE =
             new ParameterizedTypeReference<>() {
             };
+    private static final Pattern LOCAL_NAME_ENTRY_PATTERN =
+            Pattern.compile("\"code\"\\s*:\\s*(\\d+).*?\"name\"\\s*:\\s*\"([^\"]+)\"");
     private static final Map<Integer, String> LOCAL_CHARACTER_NAMES_BY_CODE = Map.ofEntries(
             Map.entry(1, "재키"),
             Map.entry(2, "아야"),
@@ -356,7 +363,7 @@ public class EternalReturnApiClient {
             return null;
         }
 
-        return characterNamesByCode.getOrDefault(characterNum, "Unknown Character (" + characterNum + ")");
+        return characterNamesByCode.getOrDefault(characterNum, "실험체 " + characterNum);
     }
 
     private String equipmentNameFor(Integer itemCode, Map<Integer, String> equipmentNamesByCode) {
@@ -405,16 +412,14 @@ public class EternalReturnApiClient {
     }
 
     private Map<Integer, String> loadEquipmentNamesByCode() {
-        Map<Integer, String> weaponNamesByCode = loadNamesByCode("ItemWeapon");
-        Map<Integer, String> armorNamesByCode = loadNamesByCode("ItemArmor");
+        Map<Integer, String> namesByCode = new java.util.HashMap<>();
+        namesByCode.putAll(loadLocalNamesByCode("item-weapon.json"));
+        namesByCode.putAll(loadLocalNamesByCode("item-armor.json"));
+        namesByCode.putAll(loadLocalNamesByCode("item-special.json"));
+        namesByCode.putAll(loadNamesByCode("ItemWeapon"));
+        namesByCode.putAll(loadNamesByCode("ItemArmor"));
 
-        return java.util.stream.Stream
-                .concat(weaponNamesByCode.entrySet().stream(), armorNamesByCode.entrySet().stream())
-                .collect(Collectors.toMap(
-                        Map.Entry::getKey,
-                        Map.Entry::getValue,
-                        (first, second) -> first
-                ));
+        return Map.copyOf(namesByCode);
     }
 
     private Map<Integer, String> loadNamesByCode(String metaType) {
@@ -440,6 +445,26 @@ public class EternalReturnApiClient {
                         data -> valueAsString(data.get("name")),
                         (first, second) -> first
                 ));
+    }
+
+    private Map<Integer, String> loadLocalNamesByCode(String filename) {
+        Path path = Path.of(filename);
+        if (!Files.isRegularFile(path)) {
+            return Map.of();
+        }
+
+        try {
+            String content = Files.readString(path);
+            Map<Integer, String> namesByCode = new java.util.HashMap<>();
+            Matcher matcher = LOCAL_NAME_ENTRY_PATTERN.matcher(content);
+            while (matcher.find()) {
+                namesByCode.put(Integer.parseInt(matcher.group(1)), matcher.group(2));
+            }
+
+            return namesByCode;
+        } catch (IOException exception) {
+            return Map.of();
+        }
     }
 
     private Integer toInteger(Object value) {

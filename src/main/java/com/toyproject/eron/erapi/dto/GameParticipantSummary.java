@@ -1,6 +1,10 @@
 package com.toyproject.eron.erapi.dto;
 
+import java.util.Comparator;
+import java.util.List;
 import java.util.Map;
+
+import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record GameParticipantSummary(
         String nickname,
@@ -26,4 +30,13 @@ public record GameParticipantSummary(
         Integer playTime,
         Map<String, EquipmentSummary> equipment
 ) {
+
+    @JsonProperty("equipmentList")
+    public List<EquipmentSummary> equipmentList() {
+        return equipment.entrySet()
+                .stream()
+                .sorted(Comparator.comparing(Map.Entry::getKey))
+                .map(Map.Entry::getValue)
+                .toList();
+    }
 }
