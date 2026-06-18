@@ -363,7 +363,7 @@ public class EternalReturnApiClient {
             return null;
         }
 
-        return characterNamesByCode.getOrDefault(characterNum, "Unknown Character (" + characterNum + ")");
+        return characterNamesByCode.getOrDefault(characterNum, "실험체 " + characterNum);
     }
 
     private String equipmentNameFor(Integer itemCode, Map<Integer, String> equipmentNamesByCode) {

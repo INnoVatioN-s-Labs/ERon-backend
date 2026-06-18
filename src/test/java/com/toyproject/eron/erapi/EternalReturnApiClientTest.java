@@ -277,7 +277,7 @@ class EternalReturnApiClientTest {
 
         assertThat(response.games()).hasSize(2);
         assertThat(response.games().get(0).characterName()).isEqualTo("알론소");
-        assertThat(response.games().get(1).characterName()).isEqualTo("Unknown Character (999)");
+        assertThat(response.games().get(1).characterName()).isEqualTo("실험체 999");
     }
 
     @Test
