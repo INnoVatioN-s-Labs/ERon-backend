@@ -17,6 +17,7 @@ import org.junit.jupiter.api.Test;
 import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
 
+import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
@@ -85,6 +86,65 @@ class EternalReturnServiceTest {
         assertThat(firstResponse).isSameAs(first);
         assertThat(secondResponse).isSameAs(second);
         verify(eternalReturnApiClient, times(2)).getUserGames("abc-123");
+    }
+
+    @Test
+    void getUserGamesIncludesLimitedGameDetailsWhenRequested() {
+        UserGamesResponse games = new UserGamesResponse(
+                List.of(
+                        userGame(98765, 1, "Jackie", 3, 5),
+                        userGame(98766, 22, "Luke", 1, 7)
+                ),
+                98766
+        );
+        GameDetailResponse detail = gameDetailResponse(98765);
+        when(eternalReturnApiClient.getUserGames("abc-123")).thenReturn(games);
+        when(eternalReturnApiClient.getGame(98765)).thenReturn(detail);
+
+        UserGamesResponse response = eternalReturnService.getUserGames("abc-123", true, 1);
+
+        assertThat(response.games()).hasSize(2);
+        assertThat(response.detailsByGameId()).containsOnly(Map.entry(98765, detail));
+        verify(eternalReturnApiClient).getUserGames("abc-123");
+        verify(eternalReturnApiClient).getGame(98765);
+        verify(eternalReturnApiClient, times(0)).getGame(98766);
+    }
+
+    @Test
+    void getGameCachesDetailWithinTtl() {
+        GameDetailResponse detail = gameDetailResponse(98765);
+        when(eternalReturnApiClient.getGame(98765)).thenReturn(detail);
+
+        GameDetailResponse firstResponse = eternalReturnService.getGame(98765);
+        GameDetailResponse secondResponse = eternalReturnService.getGame(98765);
+
+        assertThat(firstResponse).isSameAs(detail);
+        assertThat(secondResponse).isSameAs(detail);
+        verify(eternalReturnApiClient, times(1)).getGame(98765);
+    }
+
+    @Test
+    void getUserGamesStopsAddingDetailsWhenRateLimited() {
+        UserGamesResponse games = new UserGamesResponse(
+                List.of(
+                        userGame(98765, 1, "Jackie", 3, 5),
+                        userGame(98766, 22, "Luke", 1, 7),
+                        userGame(98767, 45, "Mai", 2, 4)
+                ),
+                98767
+        );
+        GameDetailResponse detail = gameDetailResponse(98765);
+        when(eternalReturnApiClient.getUserGames("abc-123")).thenReturn(games);
+        when(eternalReturnApiClient.getGame(98765)).thenReturn(detail);
+        when(eternalReturnApiClient.getGame(98766))
+                .thenThrow(new EternalReturnApiException(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests"));
+
+        UserGamesResponse response = eternalReturnService.getUserGames("abc-123", true, 3);
+
+        assertThat(response.detailsByGameId()).containsOnly(Map.entry(98765, detail));
+        verify(eternalReturnApiClient).getGame(98765);
+        verify(eternalReturnApiClient).getGame(98766);
+        verify(eternalReturnApiClient, times(0)).getGame(98767);
     }
 
     @Test
@@ -253,6 +313,21 @@ class EternalReturnServiceTest {
         return new UserGamesResponse(
                 List.of(userGame(gameId, 1, "Jackie", 3, 5)),
                 gameId
+        );
+    }
+
+    private GameDetailResponse gameDetailResponse(int gameId) {
+        return new GameDetailResponse(
+                gameId,
+                39,
+                3,
+                3,
+                "2026-06-09T13:44:20.020+0900",
+                614,
+                609,
+                8,
+                0,
+                List.of()
         );
     }
 

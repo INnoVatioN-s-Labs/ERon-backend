@@ -63,7 +63,7 @@ class EternalReturnControllerTest {
 
     @Test
     void getUserGamesReturnsMatchHistory() throws Exception {
-        when(eternalReturnService.getUserGames("abc-123"))
+        when(eternalReturnService.getUserGames("abc-123", false, 3))
                 .thenReturn(new UserGamesResponse(
                         List.of(new UserGameSummary(
                                 98765,
@@ -120,7 +120,7 @@ class EternalReturnControllerTest {
 
     @Test
     void getUserGamesReturnsStatsByMatchMode() throws Exception {
-        when(eternalReturnService.getUserGames("abc-123"))
+        when(eternalReturnService.getUserGames("abc-123", false, 3))
                 .thenReturn(new UserGamesResponse(
                         List.of(
                                 new UserGameSummary(
@@ -223,6 +223,79 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.userRank.rank").value(123))
                 .andExpect(jsonPath("$.userRank.rankScore").value(4567))
                 .andExpect(jsonPath("$.userRank.mmr").value(4321));
+    }
+
+    @Test
+    void getUserGamesCanIncludeGameDetails() throws Exception {
+        when(eternalReturnService.getUserGames("abc-123", true, 1))
+                .thenReturn(new UserGamesResponse(
+                        List.of(new UserGameSummary(
+                                98765,
+                                "testUser",
+                                39,
+                                3,
+                                3,
+                                1,
+                                "Jackie",
+                                3,
+                                5,
+                                2,
+                                1,
+                                12345,
+                                7,
+                                1620,
+                                1574,
+                                46,
+                                1620,
+                                "2026-05-30T23:15:29.029+0900",
+                                551
+                        )),
+                        98765,
+                        Map.of(98765, new GameDetailResponse(
+                                98765,
+                                39,
+                                3,
+                                3,
+                                "2026-06-09T13:44:20.020+0900",
+                                614,
+                                609,
+                                8,
+                                1,
+                                List.of(new GameParticipantSummary(
+                                        "testUser",
+                                        1,
+                                        3,
+                                        1,
+                                        "Jackie",
+                                        20,
+                                        5,
+                                        2,
+                                        1,
+                                        12,
+                                        7,
+                                        12345,
+                                        10000,
+                                        5000,
+                                        1000,
+                                        300,
+                                        1,
+                                        18,
+                                        1620,
+                                        0,
+                                        609,
+                                        Map.of("0", new EquipmentSummary(101101, "Test Item", 5))
+                                ))
+                        ))
+                ));
+
+        mockMvc.perform(get("/api/er/users/abc-123/games")
+                        .param("includeDetails", "true")
+                        .param("detailLimit", "1"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.games[0].gameId").value(98765))
+                .andExpect(jsonPath("$.detailsByGameId.98765.gameId").value(98765))
+                .andExpect(jsonPath("$.detailsByGameId.98765.participants[0].nickname").value("testUser"))
+                .andExpect(jsonPath("$.detailsByGameId.98765.participants[0].equipmentList[0].itemName").value("Test Item"));
     }
 
     @Test
@@ -471,7 +544,7 @@ class EternalReturnControllerTest {
 
     @Test
     void apiExceptionReturnsStructuredErrorResponse() throws Exception {
-        when(eternalReturnService.getUserGames("abc-123"))
+        when(eternalReturnService.getUserGames("abc-123", false, 3))
                 .thenThrow(new EternalReturnApiException(
                         HttpStatus.TOO_MANY_REQUESTS,
                         "Too Many Requests"

@@ -46,8 +46,12 @@ public class EternalReturnController {
     }
 
     @GetMapping("/users/{userId}/games")
-    public UserGamesResponse getUserGames(@PathVariable String userId) {
-        return eternalReturnService.getUserGames(userId);
+    public UserGamesResponse getUserGames(
+            @PathVariable String userId,
+            @RequestParam(defaultValue = "false") boolean includeDetails,
+            @RequestParam(defaultValue = "3") int detailLimit
+    ) {
+        return eternalReturnService.getUserGames(userId, includeDetails, detailLimit);
     }
 
     @GetMapping("/users/{userId}/rank")
