@@ -646,7 +646,7 @@ class EternalReturnApiClientTest {
                 .singleElement()
                 .satisfies(participant -> assertThat(participant.equipment())
                         .containsEntry("0", new EquipmentSummary(114702, "Unknown Item (114702)", 6))
-                        .containsEntry("1", new EquipmentSummary(109501, "Unknown Item (109501)", 5)));
+                        .containsEntry("1", new EquipmentSummary(109501, "혈화구절편", 5)));
     }
 
     @Test
