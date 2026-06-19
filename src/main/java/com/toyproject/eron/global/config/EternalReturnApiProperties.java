@@ -12,6 +12,8 @@ public class EternalReturnApiProperties {
     private Duration connectTimeout = Duration.ofSeconds(3);
     private Duration readTimeout = Duration.ofSeconds(10);
     private Duration userGamesCacheTtl = Duration.ofSeconds(30);
+    private long cacheMaximumSize = 10_000;
+    private String[] corsAllowedOrigins = {"http://localhost:5173"};
 
     public String getBaseUrl() {
         return baseUrl;
@@ -51,5 +53,21 @@ public class EternalReturnApiProperties {
 
     public void setUserGamesCacheTtl(Duration userGamesCacheTtl) {
         this.userGamesCacheTtl = userGamesCacheTtl;
+    }
+
+    public long getCacheMaximumSize() {
+        return cacheMaximumSize;
+    }
+
+    public void setCacheMaximumSize(long cacheMaximumSize) {
+        this.cacheMaximumSize = cacheMaximumSize;
+    }
+
+    public String[] getCorsAllowedOrigins() {
+        return corsAllowedOrigins;
+    }
+
+    public void setCorsAllowedOrigins(String[] corsAllowedOrigins) {
+        this.corsAllowedOrigins = corsAllowedOrigins;
     }
 }

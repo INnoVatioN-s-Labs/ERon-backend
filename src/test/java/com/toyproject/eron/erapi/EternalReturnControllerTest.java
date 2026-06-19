@@ -18,9 +18,11 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.toyproject.eron.erapi.dto.EquipmentSummary;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.GameParticipantSummary;
+import com.toyproject.eron.erapi.dto.TopRankingsResponse;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
+import com.toyproject.eron.erapi.dto.UserRankResponse;
 import com.toyproject.eron.erapi.dto.UserRecentStatsResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
 import com.toyproject.eron.global.error.GlobalExceptionHandler;
@@ -206,12 +208,22 @@ class EternalReturnControllerTest {
     @Test
     void getUserRankReturnsRank() throws Exception {
         when(eternalReturnService.getUserRank("abc-123", 28, 1))
-                .thenReturn(Map.of(
-                        "code", 200,
-                        "userRank", Map.of(
+                .thenReturn(new UserRankResponse(
+                        "abc-123",
+                        28,
+                        1,
+                        Map.of(
                                 "rank", 123,
                                 "rankScore", 4567,
                                 "mmr", 4321
+                        ),
+                        Map.of(
+                                "code", 200,
+                                "userRank", Map.of(
+                                        "rank", 123,
+                                        "rankScore", 4567,
+                                        "mmr", 4321
+                                )
                         )
                 ));
 
@@ -219,10 +231,13 @@ class EternalReturnControllerTest {
                         .param("seasonId", "28")
                         .param("matchingTeamMode", "1"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.userId").value("abc-123"))
+                .andExpect(jsonPath("$.seasonId").value(28))
+                .andExpect(jsonPath("$.matchingTeamMode").value(1))
                 .andExpect(jsonPath("$.userRank.rank").value(123))
                 .andExpect(jsonPath("$.userRank.rankScore").value(4567))
-                .andExpect(jsonPath("$.userRank.mmr").value(4321));
+                .andExpect(jsonPath("$.userRank.mmr").value(4321))
+                .andExpect(jsonPath("$.raw.code").value(200));
     }
 
     @Test
@@ -301,14 +316,26 @@ class EternalReturnControllerTest {
     @Test
     void getTopRankingsReturnsRankings() throws Exception {
         when(eternalReturnService.getTopRankings(39, 3))
-                .thenReturn(Map.of(
-                        "code", 200,
-                        "topRanks", List.of(
+                .thenReturn(new TopRankingsResponse(
+                        39,
+                        3,
+                        List.of(
                                 Map.of(
                                         "rank", 1,
                                         "nickname", "topUser",
                                         "rankScore", 8320,
                                         "tier", "이터니티"
+                                )
+                        ),
+                        Map.of(
+                                "code", 200,
+                                "topRanks", List.of(
+                                        Map.of(
+                                                "rank", 1,
+                                                "nickname", "topUser",
+                                                "rankScore", 8320,
+                                                "tier", "이터니티"
+                                        )
                                 )
                         )
                 ));
@@ -317,11 +344,13 @@ class EternalReturnControllerTest {
                         .param("seasonId", "39")
                         .param("matchingTeamMode", "3"))
                 .andExpect(status().isOk())
-                .andExpect(jsonPath("$.code").value(200))
+                .andExpect(jsonPath("$.seasonId").value(39))
+                .andExpect(jsonPath("$.matchingTeamMode").value(3))
                 .andExpect(jsonPath("$.topRanks[0].rank").value(1))
                 .andExpect(jsonPath("$.topRanks[0].nickname").value("topUser"))
                 .andExpect(jsonPath("$.topRanks[0].rankScore").value(8320))
-                .andExpect(jsonPath("$.topRanks[0].tier").value("이터니티"));
+                .andExpect(jsonPath("$.topRanks[0].tier").value("이터니티"))
+                .andExpect(jsonPath("$.raw.code").value(200));
     }
 
     @Test

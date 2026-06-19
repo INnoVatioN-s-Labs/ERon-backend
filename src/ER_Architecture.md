@@ -151,7 +151,7 @@
 | 컬럼명 | 타입 |
 |----------|----------|
 | id | BIGINT |
-| user_num | INT |
+| user_num | BIGINT |
 | nickname | VARCHAR |
 | last_updated | TIMESTAMP |
 
@@ -163,7 +163,7 @@
 |----------|----------|
 | id | BIGINT |
 | user_id | BIGINT |
-| er_user_num | INT |
+| er_user_num | BIGINT |
 | created_at | TIMESTAMP |
 
 ### match
@@ -180,26 +180,41 @@
 |----------|----------|
 | id | BIGINT |
 | match_id | VARCHAR |
-| user_num | INT |
+| season_id | INT |
+| user_num | BIGINT |
 | character_id | INT |
 | rank | INT |
 | kills | INT |
 | deaths | INT |
 | assists | INT |
 | damage | BIGINT |
+| raw_payload | JSON |
 | created_at | TIMESTAMP |
+
+권장 제약/인덱스:
+
+- unique index: `(match_id, user_num)`
+- index: `(user_num, season_id)`
+- index: `(character_id, season_id)`
+- index: `(match_id)`
 
 ### character_stats
 
 | 컬럼명 | 타입 |
 |----------|----------|
 | id | BIGINT |
-| user_num | INT |
+| season_id | INT |
+| user_num | BIGINT |
 | character_id | INT |
 | total_games | INT |
 | wins | INT |
 | avg_rank | FLOAT |
 | updated_at | TIMESTAMP |
+
+권장 인덱스:
+
+- unique index: `(season_id, user_num, character_id)`
+- index: `(season_id, character_id)`
 
 ### user_feedback
 
@@ -220,11 +235,16 @@
 | 컬럼명 | 타입 |
 |----------|----------|
 | id | BIGINT |
+| season_id | INT |
 | character_id | INT |
 | pick_rate | FLOAT |
 | win_rate | FLOAT |
 | avg_rank | FLOAT |
 | updated_at | TIMESTAMP |
+
+권장 인덱스:
+
+- unique index: `(season_id, character_id)`
 
 ### team_combination_stats
 

@@ -2,6 +2,7 @@ package com.toyproject.eron.global.error;
 
 import java.time.Instant;
 
+import jakarta.validation.ConstraintViolationException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.MissingServletRequestParameterException;
@@ -55,6 +56,18 @@ public class GlobalExceptionHandler {
                         status.getReasonPhrase(),
                         "Invalid value '%s' for request parameter '%s'. Expected type: %s."
                                 .formatted(exception.getValue(), exception.getName(), expectedType)
+                ));
+    }
+
+    @ExceptionHandler(ConstraintViolationException.class)
+    ResponseEntity<ApiErrorResponse> handleConstraintViolation(ConstraintViolationException exception) {
+        HttpStatus status = HttpStatus.BAD_REQUEST;
+        return ResponseEntity.status(status)
+                .body(new ApiErrorResponse(
+                        Instant.now(),
+                        status.value(),
+                        status.getReasonPhrase(),
+                        exception.getMessage()
                 ));
     }
 }

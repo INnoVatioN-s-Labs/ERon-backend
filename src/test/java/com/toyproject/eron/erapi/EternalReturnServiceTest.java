@@ -18,6 +18,7 @@ import org.mockito.Mockito;
 import org.springframework.http.HttpStatus;
 
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
+import com.toyproject.eron.erapi.dto.TopRankingsResponse;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
@@ -162,16 +163,14 @@ class EternalReturnServiceTest {
                 .thenReturn(new UserSearchResponse("abc-123", "topUser", Map.of()));
         when(eternalReturnApiClient.getUserGames("abc-123")).thenReturn(userGamesResponse(98765));
 
-        Map<String, Object> response = eternalReturnService.getTopRankings(39, 3);
+        TopRankingsResponse response = eternalReturnService.getTopRankings(39, 3);
 
-        assertThat(response).containsEntry("code", 200);
-        assertThat(response.get("topRanks"))
-                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+        assertThat(response.raw()).containsEntry("code", 200);
+        assertThat(response.topRanks())
                 .singleElement()
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
                 .containsEntry("rank", 1)
                 .containsEntry("nickname", "topUser")
-                .containsEntry("tier", "이터니티")
                 .containsEntry("averageRank", 3.0)
                 .containsEntry("top3Count", 1)
                 .containsEntry("top3Rate", 1.0)
@@ -194,10 +193,9 @@ class EternalReturnServiceTest {
                         ))
                 ));
 
-        Map<String, Object> response = eternalReturnService.getTopRankings(39, 3);
+        TopRankingsResponse response = eternalReturnService.getTopRankings(39, 3);
 
-        assertThat(response.get("topRanks"))
-                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+        assertThat(response.topRanks())
                 .singleElement()
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
                 .containsEntry("rank", 1)
@@ -252,14 +250,52 @@ class EternalReturnServiceTest {
                 .thenReturn(new UserSearchResponse("abc-3", "topUser3", Map.of()));
         when(eternalReturnApiClient.getUserGames("abc-3")).thenReturn(userGamesResponse(98767));
 
-        Map<String, Object> response = eternalReturnService.getTopRankings(39, 3);
+        TopRankingsResponse response = eternalReturnService.getTopRankings(39, 3);
 
-        assertThat(response.get("topRanks"))
-                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+        assertThat(response.topRanks())
                 .element(2)
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
                 .containsEntry("averageRank", 3.0)
                 .containsEntry("averageKills", 5.0);
+        verify(eternalReturnApiClient).getUserByNickname("topUser3");
+        verify(eternalReturnApiClient).getUserGames("abc-3");
+    }
+
+    @Test
+    void getTopRankingsContinuesAfterRateLimitOnSingleRanking() {
+        when(eternalReturnApiClient.getTopRankings(39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "topRanks", List.of(
+                                Map.of("rank", 1, "nickname", "topUser1", "rankScore", 8320),
+                                Map.of("rank", 2, "nickname", "topUser2", "rankScore", 8200),
+                                Map.of("rank", 3, "nickname", "topUser3", "rankScore", 8100)
+                        )
+                ));
+        when(eternalReturnApiClient.getUserByNickname("topUser1"))
+                .thenReturn(new UserSearchResponse("abc-1", "topUser1", Map.of()));
+        when(eternalReturnApiClient.getUserGames("abc-1")).thenReturn(userGamesResponse(98765));
+        when(eternalReturnApiClient.getUserByNickname("topUser2"))
+                .thenReturn(new UserSearchResponse("abc-2", "topUser2", Map.of()));
+        when(eternalReturnApiClient.getUserGames("abc-2"))
+                .thenThrow(new EternalReturnApiException(HttpStatus.TOO_MANY_REQUESTS, "Too Many Requests"));
+        when(eternalReturnApiClient.getUserByNickname("topUser3"))
+                .thenReturn(new UserSearchResponse("abc-3", "topUser3", Map.of()));
+        when(eternalReturnApiClient.getUserGames("abc-3")).thenReturn(userGamesResponse(98767));
+
+        TopRankingsResponse response = eternalReturnService.getTopRankings(39, 3);
+
+        assertThat(response.topRanks())
+                .element(1)
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("top3Count", 0)
+                .containsEntry("averageKills", null);
+        assertThat(response.topRanks())
+                .element(2)
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("averageRank", 3.0)
+                .containsEntry("averageKills", 5.0)
+                .containsEntry("mostPlayedCharacterName", "Jackie");
         verify(eternalReturnApiClient).getUserByNickname("topUser3");
         verify(eternalReturnApiClient).getUserGames("abc-3");
     }
