@@ -3,7 +3,7 @@ package com.toyproject.eron.erapi.dto;
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record UserGameSummary(
-        Integer gameId,
+        Long gameId,
         String nickname,
         Integer seasonId,
         Integer matchingMode,

@@ -4,7 +4,7 @@ import java.util.List;
 import java.util.Map;
 
 public record GameDetailResponse(
-        Integer gameId,
+        Long gameId,
         Integer seasonId,
         Integer matchingMode,
         Integer matchingTeamMode,

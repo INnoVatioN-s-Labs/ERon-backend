@@ -29,6 +29,7 @@ import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
 import com.toyproject.eron.erapi.dto.UserRecentStatsResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
+import com.toyproject.eron.erapi.dto.UserStatsResponse;
 import com.toyproject.eron.global.config.EternalReturnApiProperties;
 
 @Component
@@ -152,9 +153,16 @@ public class EternalReturnApiClient {
     public UserOverviewResponse getUserOverview(String nickname, int seasonId, int matchingTeamMode) {
         UserSearchResponse user = getUserByNickname(nickname);
         Map<String, Object> rank = getUserRank(user.userId(), seasonId, matchingTeamMode);
+        Map<String, Object> stats = getUserStats(user.userId(), seasonId);
         UserGamesResponse games = getUserGames(user.userId());
 
-        return new UserOverviewResponse(user, rank, games, UserRecentStatsResponse.from(games));
+        return new UserOverviewResponse(
+                user,
+                rank,
+                new UserStatsResponse(user.userId(), seasonId, asListOfMaps(stats.get("userStats")), stats),
+                games,
+                UserRecentStatsResponse.from(games)
+        );
     }
 
     public Map<String, Object> getUserStats(String userId, int seasonId) {
@@ -162,8 +170,36 @@ public class EternalReturnApiClient {
     }
 
     public UserGamesResponse getUserGames(String userId) {
-        Map<String, Object> response = getJson("/user/games/uid/{userId}", userId);
+        return getUserGames(userId, null);
+    }
+
+    public UserGamesResponse getUserGames(String userId, Long next) {
+        Map<String, Object> response;
+        if (next == null) {
+            response = getJson("/user/games/uid/{userId}", userId);
+        } else {
+            response = getUserGamesJson(userId, next);
+        }
         return toUserGamesResponse(response, getCharacterNamesByCode());
+    }
+
+    private Map<String, Object> getUserGamesJson(String userId, Long next) {
+        assertApiKeyConfigured();
+
+        try {
+            Map<String, Object> response = restClient.get()
+                    .uri(uriBuilder -> uriBuilder
+                            .path("/user/games/uid/{userId}")
+                            .queryParam("next", next)
+                            .build(userId))
+                    .retrieve()
+                    .body(MAP_RESPONSE_TYPE);
+            return response == null ? Map.of() : response;
+        } catch (HttpStatusCodeException exception) {
+            throw toApiException(exception);
+        } catch (ResourceAccessException exception) {
+            throw timeoutException();
+        }
     }
 
     public Map<String, Object> getUserRank(String userId, int seasonId, int matchingTeamMode) {
@@ -174,7 +210,7 @@ public class EternalReturnApiClient {
         return getJson("/rank/top/{seasonId}/{matchingTeamMode}", seasonId, matchingTeamMode);
     }
 
-    public GameDetailResponse getGame(int gameId) {
+    public GameDetailResponse getGame(long gameId) {
         Map<String, Object> response = getJson("/games/{gameId}", gameId);
         return toGameDetailResponse(response, getCharacterNamesByCode(), getEquipmentNamesByCode());
     }
@@ -224,9 +260,21 @@ public class EternalReturnApiClient {
         return null;
     }
 
+    private List<Map<String, Object>> asListOfMaps(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+
+        return list.stream()
+                .map(this::asMap)
+                .filter(map -> map != null)
+                .toList();
+    }
+
     private UserGamesResponse toUserGamesResponse(Map<String, Object> response, Map<Integer, String> characterNamesByCode) {
         List<UserGameSummary> games = List.of();
-        if (response.get("userGames") instanceof List<?> userGames) {
+        List<?> userGames = userGamesFrom(response);
+        if (!userGames.isEmpty()) {
             games = userGames.stream()
                     .map(this::asMap)
                     .filter(game -> game != null)
@@ -234,14 +282,14 @@ public class EternalReturnApiClient {
                     .toList();
         }
 
-        return new UserGamesResponse(games, toInteger(response.get("next")));
+        return new UserGamesResponse(games, toLong(response.get("next")));
     }
 
     private UserGameSummary toUserGameSummary(Map<String, Object> game, Map<Integer, String> characterNamesByCode) {
         Integer characterNum = toInteger(game.get("characterNum"));
 
         return new UserGameSummary(
-                toInteger(game.get("gameId")),
+                toLong(game.get("gameId")),
                 valueAsString(game.get("nickname")),
                 toInteger(game.get("seasonId")),
                 toInteger(game.get("matchingMode")),
@@ -268,19 +316,17 @@ public class EternalReturnApiClient {
             Map<Integer, String> characterNamesByCode,
             Map<Integer, String> equipmentNamesByCode
     ) {
-        List<GameParticipantSummary> participants = List.of();
-        if (response.get("userGames") instanceof List<?> userGames) {
-            participants = userGames.stream()
-                    .map(this::asMap)
-                    .filter(game -> game != null)
-                    .map(game -> toGameParticipantSummary(game, characterNamesByCode, equipmentNamesByCode))
-                    .toList();
-        }
+        List<?> userGames = userGamesFrom(response);
+        List<GameParticipantSummary> participants = userGames.stream()
+                .map(this::asMap)
+                .filter(game -> game != null)
+                .map(game -> toGameParticipantSummary(game, characterNamesByCode, equipmentNamesByCode))
+                .toList();
 
         Map<String, Object> firstGame = firstUserGame(response);
 
         return new GameDetailResponse(
-                toInteger(firstGame.get("gameId")),
+                toLong(firstGame.get("gameId")),
                 toInteger(firstGame.get("seasonId")),
                 toInteger(firstGame.get("matchingMode")),
                 toInteger(firstGame.get("matchingTeamMode")),
@@ -294,7 +340,8 @@ public class EternalReturnApiClient {
     }
 
     private Map<String, Object> firstUserGame(Map<String, Object> response) {
-        if (response.get("userGames") instanceof List<?> userGames && !userGames.isEmpty()) {
+        List<?> userGames = userGamesFrom(response);
+        if (!userGames.isEmpty()) {
             Map<String, Object> firstGame = asMap(userGames.get(0));
             if (firstGame != null) {
                 return firstGame;
@@ -302,6 +349,20 @@ public class EternalReturnApiClient {
         }
 
         return Map.of();
+    }
+
+    private List<?> userGamesFrom(Map<String, Object> response) {
+        if (response.get("userGames") instanceof List<?> userGames) {
+            return userGames;
+        }
+        if (response.get("userGame") instanceof List<?> userGame) {
+            return userGame;
+        }
+        if (response.get("userGame") instanceof Map<?, ?> userGame) {
+            return List.of(userGame);
+        }
+
+        return List.of();
     }
 
     private GameParticipantSummary toGameParticipantSummary(
@@ -394,8 +455,8 @@ public class EternalReturnApiClient {
     }
 
     private Map<Integer, String> loadCharacterNamesByCode() {
-        Map<Integer, String> characterNamesByCode = new java.util.HashMap<>(LOCAL_CHARACTER_NAMES_BY_CODE);
-        characterNamesByCode.putAll(loadNamesByCode("Character"));
+        Map<Integer, String> characterNamesByCode = new java.util.HashMap<>(loadNamesByCode("Character"));
+        characterNamesByCode.putAll(LOCAL_CHARACTER_NAMES_BY_CODE);
 
         return Map.copyOf(characterNamesByCode);
     }
@@ -478,6 +539,14 @@ public class EternalReturnApiClient {
     private Integer toInteger(Object value) {
         if (value instanceof Number number) {
             return number.intValue();
+        }
+
+        return null;
+    }
+
+    private Long toLong(Object value) {
+        if (value instanceof Number number) {
+            return number.longValue();
         }
 
         return null;

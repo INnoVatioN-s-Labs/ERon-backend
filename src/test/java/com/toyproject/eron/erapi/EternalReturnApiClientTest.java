@@ -183,7 +183,7 @@ class EternalReturnApiClientTest {
     }
 
     @Test
-    void apiCharacterNameOverridesLocalFallbackName() {
+    void localKoreanCharacterNameOverridesApiName() {
         server.createContext("/user/games/uid/abc-123", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
             writeJson(exchange, 200, """
@@ -214,7 +214,7 @@ class EternalReturnApiClientTest {
                 .singleElement()
                 .satisfies(game -> {
                     assertThat(game.characterNum()).isEqualTo(68);
-                    assertThat(game.characterName()).isEqualTo("Api Alonso");
+                    assertThat(game.characterName()).isEqualTo("알론소");
                 });
     }
 
@@ -278,6 +278,42 @@ class EternalReturnApiClientTest {
         assertThat(response.games()).hasSize(2);
         assertThat(response.games().get(0).characterName()).isEqualTo("알론소");
         assertThat(response.games().get(1).characterName()).isEqualTo("실험체 999");
+    }
+
+    @Test
+    void getUserGamesWithNextSendsNextCursor() {
+        server.createContext("/user/games/uid/abc-123", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "userGames": [
+                        {
+                          "gameId": 98764,
+                          "nickname": "testUser",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 1,
+                          "gameRank": 5
+                        }
+                      ],
+                      "next": 98764
+                    }
+                    """);
+        });
+        createCharacterDataContext();
+
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        UserGamesResponse response = client.getUserGames("abc-123", 98765L);
+
+        assertThat(response.next()).isEqualTo(98764L);
+        assertThat(response.games())
+                .singleElement()
+                .satisfies(game -> assertThat(game.gameId()).isEqualTo(98764L));
+        assertThat(capturedRequests.get(0).path()).isEqualTo("/user/games/uid/abc-123");
+        assertThat(capturedRequests.get(0).query()).isEqualTo("next=98765");
     }
 
     @Test
@@ -458,7 +494,7 @@ class EternalReturnApiClientTest {
                     assertThat(participant.teamNumber()).isEqualTo(1);
                     assertThat(participant.gameRank()).isEqualTo(1);
                     assertThat(participant.characterNum()).isEqualTo(22);
-                    assertThat(participant.characterName()).isEqualTo("Luke");
+                    assertThat(participant.characterName()).isEqualTo("루크");
                     assertThat(participant.characterLevel()).isEqualTo(20);
                     assertThat(participant.playerKill()).isEqualTo(12);
                     assertThat(participant.playerAssistant()).isEqualTo(11);
@@ -500,6 +536,80 @@ class EternalReturnApiClientTest {
         assertThat(capturedRequests.get(2).apiKey()).isEqualTo("test-api-key");
         assertThat(capturedRequests.get(3).path()).isEqualTo("/data/ItemArmor");
         assertThat(capturedRequests.get(3).apiKey()).isEqualTo("test-api-key");
+    }
+
+    @Test
+    void getUserGamesPreservesLargeGameIdsForDetailLookup() {
+        server.createContext("/user/games/uid/abc-123", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "userGames": [
+                        {
+                          "gameId": 3000000000,
+                          "nickname": "testUser",
+                          "seasonId": 39,
+                          "matchingMode": 3,
+                          "matchingTeamMode": 3,
+                          "characterNum": 1,
+                          "gameRank": 3
+                        }
+                      ]
+                    }
+                    """);
+        });
+        createCharacterDataContext();
+
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        UserGamesResponse response = client.getUserGames("abc-123");
+
+        assertThat(response.games())
+                .singleElement()
+                .satisfies(game -> assertThat(game.gameId()).isEqualTo(3_000_000_000L));
+    }
+
+    @Test
+    void getGameMapsSingleUserGameDetailResponse() {
+        server.createContext("/games/3000000000", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "message": "Success",
+                      "userGame": {
+                        "gameId": 3000000000,
+                        "nickname": "winner",
+                        "seasonId": 39,
+                        "matchingMode": 3,
+                        "matchingTeamMode": 3,
+                        "characterNum": 22,
+                        "gameRank": 1,
+                        "startDtm": "2026-06-09T13:44:20.020+0900",
+                        "duration": 614,
+                        "playTime": 609,
+                        "matchSize": 8,
+                        "teamNumber": 1
+                      }
+                    }
+                    """);
+        });
+        createCharacterDataContext();
+        createEquipmentDataContexts();
+
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        GameDetailResponse response = client.getGame(3_000_000_000L);
+
+        assertThat(response.gameId()).isEqualTo(3_000_000_000L);
+        assertThat(response.participants())
+                .singleElement()
+                .satisfies(participant -> {
+                    assertThat(participant.nickname()).isEqualTo("winner");
+                    assertThat(participant.characterName()).isEqualTo("루크");
+                });
+        assertThat(capturedRequests.get(0).path()).isEqualTo("/games/3000000000");
     }
 
     @Test
@@ -578,11 +688,11 @@ class EternalReturnApiClientTest {
 
         assertThat(games.games())
                 .singleElement()
-                .satisfies(game -> assertThat(game.characterName()).isEqualTo("Jackie"));
+                .satisfies(game -> assertThat(game.characterName()).isEqualTo("재키"));
         assertThat(detail.participants())
                 .singleElement()
                 .satisfies(participant -> {
-                    assertThat(participant.characterName()).isEqualTo("Luke");
+                    assertThat(participant.characterName()).isEqualTo("루크");
                     assertThat(participant.equipment()).containsEntry(
                             "0",
                             new EquipmentSummary(114702, "Longbow", 6)
@@ -676,6 +786,21 @@ class EternalReturnApiClientTest {
                     }
                     """);
         });
+        server.createContext("/user/stats/uid/abc-123/28", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "userStats": [
+                        {
+                          "matchingTeamMode": 1,
+                          "totalGames": 100,
+                          "averageRank": 4.2
+                        }
+                      ]
+                    }
+                    """);
+        });
         server.createContext("/user/games/uid/abc-123", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
             writeJson(exchange, 200, """
@@ -717,6 +842,11 @@ class EternalReturnApiClientTest {
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
                 .containsEntry("rank", 123)
                 .containsEntry("rankScore", 4567);
+        assertThat(response.seasonStats().userStats())
+                .singleElement()
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("totalGames", 100)
+                .containsEntry("averageRank", 4.2);
         assertThat(response.games().next()).isEqualTo(98765);
         assertThat(response.games().games())
                 .singleElement()
@@ -743,6 +873,7 @@ class EternalReturnApiClientTest {
                 .containsExactly(
                         "/user/nickname",
                         "/rank/uid/abc-123/28/1",
+                        "/user/stats/uid/abc-123/28",
                         "/user/games/uid/abc-123",
                         "/data/Character"
                 );
