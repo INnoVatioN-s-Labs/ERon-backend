@@ -1,0 +1,181 @@
+openapi: 3.0.3
+info:
+  title: ERon Backend API
+  version: 0.1.0
+servers:
+  - url: http://localhost:8080
+paths:
+  /api/er/users/search:
+    get:
+      summary: Search an Eternal Return user by nickname.
+      parameters:
+        - name: nickname
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+      responses:
+        '200':
+          description: User search result.
+  /api/er/users/overview:
+    get:
+      summary: Return user, rank, recent games, and recent stats in one response.
+      parameters:
+        - name: nickname
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 1
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+        - name: matchingTeamMode
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: User overview.
+  /api/er/users/{userId}/stats:
+    get:
+      summary: Return season stats for a user.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+      responses:
+        '200':
+          description: User stats wrapped by backend contract fields.
+  /api/er/users/{userId}/games:
+    get:
+      summary: Return recent games for a user.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: includeDetails
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+        - name: detailLimit
+          in: query
+          required: false
+          schema:
+            type: integer
+            minimum: 0
+            default: 3
+      responses:
+        '200':
+          description: Recent games and optional game details.
+  /api/er/users/{userId}/rank:
+    get:
+      summary: Return rank for a user.
+      parameters:
+        - name: userId
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+        - name: matchingTeamMode
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Rank response wrapped by backend contract fields.
+  /api/er/rankings/top:
+    get:
+      summary: Return top rankings enriched with recent stats when possible.
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+        - name: matchingTeamMode
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Top rankings response.
+  /api/er/meta/characters:
+    get:
+      summary: Return character meta aggregated from top ranking samples.
+      parameters:
+        - name: seasonId
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 0
+        - name: matchingTeamMode
+          in: query
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+        - name: tier
+          in: query
+          required: false
+          schema:
+            type: string
+            default: 이터니티
+      responses:
+        '200':
+          description: Character meta response.
+  /api/er/games/{gameId}:
+    get:
+      summary: Return a mapped game detail.
+      parameters:
+        - name: gameId
+          in: path
+          required: true
+          schema:
+            type: integer
+            minimum: 1
+      responses:
+        '200':
+          description: Game detail response.
+  /api/er/data/{metaType}:
+    get:
+      summary: Return a raw Eternal Return data table wrapped by backend contract fields.
+      parameters:
+        - name: metaType
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Data table response.

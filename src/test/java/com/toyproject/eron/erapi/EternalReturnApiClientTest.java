@@ -183,7 +183,7 @@ class EternalReturnApiClientTest {
     }
 
     @Test
-    void localKoreanCharacterNameOverridesApiName() {
+    void apiCharacterNameOverridesLocalFallbackName() {
         server.createContext("/user/games/uid/abc-123", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
             writeJson(exchange, 200, """
@@ -214,7 +214,7 @@ class EternalReturnApiClientTest {
                 .singleElement()
                 .satisfies(game -> {
                     assertThat(game.characterNum()).isEqualTo(68);
-                    assertThat(game.characterName()).isEqualTo("알론소");
+                    assertThat(game.characterName()).isEqualTo("Api Alonso");
                 });
     }
 
@@ -458,7 +458,7 @@ class EternalReturnApiClientTest {
                     assertThat(participant.teamNumber()).isEqualTo(1);
                     assertThat(participant.gameRank()).isEqualTo(1);
                     assertThat(participant.characterNum()).isEqualTo(22);
-                    assertThat(participant.characterName()).isEqualTo("루크");
+                    assertThat(participant.characterName()).isEqualTo("Luke");
                     assertThat(participant.characterLevel()).isEqualTo(20);
                     assertThat(participant.playerKill()).isEqualTo(12);
                     assertThat(participant.playerAssistant()).isEqualTo(11);
@@ -578,11 +578,11 @@ class EternalReturnApiClientTest {
 
         assertThat(games.games())
                 .singleElement()
-                .satisfies(game -> assertThat(game.characterName()).isEqualTo("재키"));
+                .satisfies(game -> assertThat(game.characterName()).isEqualTo("Jackie"));
         assertThat(detail.participants())
                 .singleElement()
                 .satisfies(participant -> {
-                    assertThat(participant.characterName()).isEqualTo("루크");
+                    assertThat(participant.characterName()).isEqualTo("Luke");
                     assertThat(participant.equipment()).containsEntry(
                             "0",
                             new EquipmentSummary(114702, "Longbow", 6)

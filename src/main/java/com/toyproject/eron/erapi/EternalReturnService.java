@@ -7,43 +7,70 @@ import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentHashMap;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.http.HttpStatus;
 import org.springframework.stereotype.Service;
 
+import com.github.benmanes.caffeine.cache.Cache;
+import com.github.benmanes.caffeine.cache.Caffeine;
+import com.toyproject.eron.erapi.dto.DataTableResponse;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
+import com.toyproject.eron.erapi.dto.TopRankingsResponse;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
+import com.toyproject.eron.erapi.dto.UserRankResponse;
 import com.toyproject.eron.erapi.dto.UserRecentStatsResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
+import com.toyproject.eron.erapi.dto.UserStatsResponse;
 import com.toyproject.eron.global.config.EternalReturnApiProperties;
 
 @Service
 public class EternalReturnService {
 
+    private static final Logger log = LoggerFactory.getLogger(EternalReturnService.class);
     private static final int RANKING_STATS_ENRICH_LIMIT = 10;
     private static final int USER_GAMES_DETAIL_LIMIT_MAX = 5;
 
     private final EternalReturnApiClient eternalReturnApiClient;
     private final Duration userGamesCacheTtl;
     private final Clock clock;
-    private final Map<String, CacheEntry<UserGamesResponse>> userGamesCache = new ConcurrentHashMap<>();
-    private final Map<Integer, CacheEntry<GameDetailResponse>> gameDetailCache = new ConcurrentHashMap<>();
-    private final Map<String, CacheEntry<Map<String, Object>>> topRankingsCache = new ConcurrentHashMap<>();
-    private final Map<String, CacheEntry<UserSearchResponse>> userSearchCache = new ConcurrentHashMap<>();
+    private final Cache<String, CacheEntry<UserGamesResponse>> userGamesCache;
+    private final Cache<Integer, CacheEntry<GameDetailResponse>> gameDetailCache;
+    private final Cache<String, CacheEntry<Map<String, Object>>> topRankingsCache;
+    private final Cache<String, CacheEntry<UserSearchResponse>> userSearchCache;
 
     @Autowired
     public EternalReturnService(EternalReturnApiClient eternalReturnApiClient, EternalReturnApiProperties properties) {
-        this(eternalReturnApiClient, properties.getUserGamesCacheTtl(), Clock.systemUTC());
+        this(
+                eternalReturnApiClient,
+                properties.getUserGamesCacheTtl(),
+                Clock.systemUTC(),
+                properties.getCacheMaximumSize()
+        );
     }
 
     EternalReturnService(EternalReturnApiClient eternalReturnApiClient, Duration userGamesCacheTtl, Clock clock) {
+        this(eternalReturnApiClient, userGamesCacheTtl, clock, 10_000);
+    }
+
+    EternalReturnService(
+            EternalReturnApiClient eternalReturnApiClient,
+            Duration userGamesCacheTtl,
+            Clock clock,
+            long cacheMaximumSize
+    ) {
         this.eternalReturnApiClient = eternalReturnApiClient;
         this.userGamesCacheTtl = userGamesCacheTtl;
         this.clock = clock;
+        long maximumSize = Math.max(1, cacheMaximumSize);
+        this.userGamesCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
+        this.gameDetailCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
+        this.topRankingsCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
+        this.userSearchCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
     }
 
     public UserSearchResponse getUserByNickname(String nickname) {
@@ -51,11 +78,15 @@ public class EternalReturnService {
     }
 
     public UserOverviewResponse getUserOverview(String nickname, int seasonId, int matchingTeamMode) {
-        return eternalReturnApiClient.getUserOverview(nickname, seasonId, matchingTeamMode);
+        UserSearchResponse user = getCachedUserByNickname(nickname);
+        Map<String, Object> rank = eternalReturnApiClient.getUserRank(user.userId(), seasonId, matchingTeamMode);
+        UserGamesResponse games = getUserGames(user.userId());
+        return new UserOverviewResponse(user, rank, games, UserRecentStatsResponse.from(games));
     }
 
-    public Map<String, Object> getUserStats(String userId, int seasonId) {
-        return eternalReturnApiClient.getUserStats(userId, seasonId);
+    public UserStatsResponse getUserStats(String userId, int seasonId) {
+        Map<String, Object> response = eternalReturnApiClient.getUserStats(userId, seasonId);
+        return new UserStatsResponse(userId, seasonId, asListOfMaps(response.get("userStats")), response);
     }
 
     public UserGamesResponse getUserGames(String userId) {
@@ -64,10 +95,11 @@ public class EternalReturnService {
         }
 
         Instant now = clock.instant();
-        CacheEntry<UserGamesResponse> cached = userGamesCache.get(userId);
-        if (cached != null && cached.expiresAt().isAfter(now)) {
+        CacheEntry<UserGamesResponse> cached = userGamesCache.getIfPresent(userId);
+        if (isAlive(cached, now)) {
             return cached.value();
         }
+        userGamesCache.invalidate(userId);
 
         UserGamesResponse response = eternalReturnApiClient.getUserGames(userId);
         userGamesCache.put(userId, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
@@ -91,19 +123,25 @@ public class EternalReturnService {
         return new UserGamesResponse(response.games(), response.next(), detailsByGameId);
     }
 
-    public Map<String, Object> getUserRank(String userId, int seasonId, int matchingTeamMode) {
-        return eternalReturnApiClient.getUserRank(userId, seasonId, matchingTeamMode);
+    public UserRankResponse getUserRank(String userId, int seasonId, int matchingTeamMode) {
+        Map<String, Object> response = eternalReturnApiClient.getUserRank(userId, seasonId, matchingTeamMode);
+        return new UserRankResponse(userId, seasonId, matchingTeamMode, asMap(response.get("userRank")), response);
     }
 
-    public Map<String, Object> getTopRankings(int seasonId, int matchingTeamMode) {
+    public TopRankingsResponse getTopRankings(int seasonId, int matchingTeamMode) {
         Map<String, Object> response = getCachedTopRankings(seasonId, matchingTeamMode);
         if (!(response.get("topRanks") instanceof List<?> topRanks)) {
-            return response;
+            return new TopRankingsResponse(seasonId, matchingTeamMode, List.of(), response);
         }
 
         Map<String, Object> enrichedResponse = new LinkedHashMap<>(response);
         enrichedResponse.put("topRanks", enrichTopRankings(topRanks));
-        return enrichedResponse;
+        return new TopRankingsResponse(
+                seasonId,
+                matchingTeamMode,
+                asListOfMaps(enrichedResponse.get("topRanks")),
+                enrichedResponse
+        );
     }
 
     public Map<String, Object> getCharacterMeta(int seasonId, int matchingTeamMode, String tier) {
@@ -132,8 +170,8 @@ public class EternalReturnService {
         return getCachedGame(gameId);
     }
 
-    public Map<String, Object> getDataTable(String metaType) {
-        return eternalReturnApiClient.getDataTable(metaType);
+    public DataTableResponse getDataTable(String metaType) {
+        return new DataTableResponse(metaType, eternalReturnApiClient.getDataTable(metaType));
     }
 
     @SuppressWarnings("unchecked")
@@ -152,10 +190,11 @@ public class EternalReturnService {
 
         String cacheKey = seasonId + ":" + matchingTeamMode;
         Instant now = clock.instant();
-        CacheEntry<Map<String, Object>> cached = topRankingsCache.get(cacheKey);
-        if (cached != null && cached.expiresAt().isAfter(now)) {
+        CacheEntry<Map<String, Object>> cached = topRankingsCache.getIfPresent(cacheKey);
+        if (isAlive(cached, now)) {
             return cached.value();
         }
+        topRankingsCache.invalidate(cacheKey);
 
         Map<String, Object> response = eternalReturnApiClient.getTopRankings(seasonId, matchingTeamMode);
         topRankingsCache.put(cacheKey, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
@@ -181,10 +220,11 @@ public class EternalReturnService {
         }
 
         Instant now = clock.instant();
-        CacheEntry<GameDetailResponse> cached = gameDetailCache.get(gameId);
-        if (cached != null && cached.expiresAt().isAfter(now)) {
+        CacheEntry<GameDetailResponse> cached = gameDetailCache.getIfPresent(gameId);
+        if (isAlive(cached, now)) {
             return cached.value();
         }
+        gameDetailCache.invalidate(gameId);
 
         GameDetailResponse response = eternalReturnApiClient.getGame(gameId);
         gameDetailCache.put(gameId, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
@@ -193,15 +233,19 @@ public class EternalReturnService {
 
     private List<Map<String, Object>> enrichTopRankings(List<?> topRanks) {
         java.util.ArrayList<Map<String, Object>> rankings = new java.util.ArrayList<>(topRanks.size());
-        boolean rateLimited = false;
 
         for (int index = 0; index < topRanks.size(); index++) {
             Map<String, Object> ranking = toRankingMap(topRanks.get(index));
-            if (!rateLimited && index < RANKING_STATS_ENRICH_LIMIT) {
+            if (index < RANKING_STATS_ENRICH_LIMIT) {
                 try {
                     ranking = enrichRankingWithRecentStats(ranking);
                 } catch (EternalReturnApiException exception) {
-                    rateLimited = exception.getStatus() == HttpStatus.TOO_MANY_REQUESTS;
+                    log.warn(
+                            "Failed to enrich top ranking stats: rank={}, nickname={}, status={}",
+                            ranking.get("rank"),
+                            ranking.get("nickname"),
+                            exception.getStatus()
+                    );
                     ranking = enrichRankingWithEmptyStats(ranking);
                 }
             } else {
@@ -348,10 +392,7 @@ public class EternalReturnService {
             return;
         }
 
-        Integer rank = toInteger(ranking.get("rank"));
-        if (rank != null && rank <= 200) {
-            ranking.put("tier", "이터니티");
-        }
+        log.debug("Ranking tier is missing; leaving tier unset. rank={}", ranking.get("rank"));
     }
 
     private Integer toInteger(Object value) {
@@ -368,14 +409,39 @@ public class EternalReturnService {
         }
 
         Instant now = clock.instant();
-        CacheEntry<UserSearchResponse> cached = userSearchCache.get(nickname);
-        if (cached != null && cached.expiresAt().isAfter(now)) {
+        CacheEntry<UserSearchResponse> cached = userSearchCache.getIfPresent(nickname);
+        if (isAlive(cached, now)) {
             return cached.value();
         }
+        userSearchCache.invalidate(nickname);
 
         UserSearchResponse response = eternalReturnApiClient.getUserByNickname(nickname);
         userSearchCache.put(nickname, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
         return response;
+    }
+
+    private boolean isAlive(CacheEntry<?> cacheEntry, Instant now) {
+        return cacheEntry != null && cacheEntry.expiresAt().isAfter(now);
+    }
+
+    @SuppressWarnings("unchecked")
+    private Map<String, Object> asMap(Object value) {
+        if (value instanceof Map<?, ?> map) {
+            return new LinkedHashMap<>((Map<String, Object>) map);
+        }
+
+        return Map.of();
+    }
+
+    private List<Map<String, Object>> asListOfMaps(Object value) {
+        if (!(value instanceof List<?> list)) {
+            return List.of();
+        }
+
+        return list.stream()
+                .map(this::asMap)
+                .filter(map -> !map.isEmpty())
+                .toList();
     }
 
     private UserRecentStatsResponse emptyRecentStats() {

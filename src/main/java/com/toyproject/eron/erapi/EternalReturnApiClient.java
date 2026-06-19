@@ -1,8 +1,8 @@
 package com.toyproject.eron.erapi;
 
 import java.io.IOException;
-import java.nio.file.Files;
-import java.nio.file.Path;
+import java.io.InputStream;
+import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -10,8 +10,11 @@ import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 import java.util.stream.Collectors;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 import org.springframework.http.HttpStatus;
 import org.springframework.core.ParameterizedTypeReference;
+import org.springframework.core.io.ClassPathResource;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
 import org.springframework.web.client.HttpStatusCodeException;
@@ -31,6 +34,7 @@ import com.toyproject.eron.global.config.EternalReturnApiProperties;
 @Component
 public class EternalReturnApiClient {
 
+    private static final Logger log = LoggerFactory.getLogger(EternalReturnApiClient.class);
     private static final ParameterizedTypeReference<Map<String, Object>> MAP_RESPONSE_TYPE =
             new ParameterizedTypeReference<>() {
             };
@@ -390,8 +394,8 @@ public class EternalReturnApiClient {
     }
 
     private Map<Integer, String> loadCharacterNamesByCode() {
-        Map<Integer, String> characterNamesByCode = new java.util.HashMap<>(loadNamesByCode("Character"));
-        characterNamesByCode.putAll(LOCAL_CHARACTER_NAMES_BY_CODE);
+        Map<Integer, String> characterNamesByCode = new java.util.HashMap<>(LOCAL_CHARACTER_NAMES_BY_CODE);
+        characterNamesByCode.putAll(loadNamesByCode("Character"));
 
         return Map.copyOf(characterNamesByCode);
     }
@@ -416,6 +420,7 @@ public class EternalReturnApiClient {
         namesByCode.putAll(loadLocalNamesByCode("item-weapon.json"));
         namesByCode.putAll(loadLocalNamesByCode("item-armor.json"));
         namesByCode.putAll(loadLocalNamesByCode("item-special.json"));
+        namesByCode.putAll(loadLocalNamesByCode("item-consumable.json"));
         namesByCode.putAll(loadNamesByCode("ItemWeapon"));
         namesByCode.putAll(loadNamesByCode("ItemArmor"));
 
@@ -426,6 +431,7 @@ public class EternalReturnApiClient {
         try {
             return toNamesByCode(getDataTable(metaType));
         } catch (EternalReturnApiException exception) {
+            log.warn("Failed to load ER metadata table: metaType={}, status={}", metaType, exception.getStatus());
             return Map.of();
         }
     }
@@ -448,13 +454,14 @@ public class EternalReturnApiClient {
     }
 
     private Map<Integer, String> loadLocalNamesByCode(String filename) {
-        Path path = Path.of(filename);
-        if (!Files.isRegularFile(path)) {
+        ClassPathResource resource = new ClassPathResource("er-data/" + filename);
+        if (!resource.exists()) {
+            log.warn("Local ER metadata file is missing from classpath: {}", filename);
             return Map.of();
         }
 
-        try {
-            String content = Files.readString(path);
+        try (InputStream inputStream = resource.getInputStream()) {
+            String content = new String(inputStream.readAllBytes(), StandardCharsets.UTF_8);
             Map<Integer, String> namesByCode = new java.util.HashMap<>();
             Matcher matcher = LOCAL_NAME_ENTRY_PATTERN.matcher(content);
             while (matcher.find()) {
@@ -463,6 +470,7 @@ public class EternalReturnApiClient {
 
             return namesByCode;
         } catch (IOException exception) {
+            log.warn("Failed to read local ER metadata file: {}", filename, exception);
             return Map.of();
         }
     }

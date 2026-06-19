@@ -6,6 +6,49 @@
 
 ---
 
+## 2026-06-18
+
+### 작업 요약
+
+- 프론트엔드 개발 서버(`http://localhost:5173`) 연동을 위한 CORS 설정을 추가했다.
+- 컨트롤러 query/path parameter에 Bean Validation을 적용했다.
+- Actuator 의존성과 기본 노출 엔드포인트(`health`, `info`, `metrics`)를 추가했다.
+- 정적 OpenAPI 명세 파일을 추가했다. 실행 시 `/openapi.yaml`로 확인할 수 있다.
+- 서비스 캐시를 Caffeine 기반 bounded cache로 교체해 만료 키가 무한히 쌓이지 않도록 했다.
+- `/users/overview`가 서비스 계층 캐시를 우회하지 않고 캐시된 유저 검색/최근 게임 조회를 조합하도록 바꿨다.
+- 캐릭터명 로딩은 로컬 fallback보다 API 메타데이터를 우선하도록 수정했다.
+- 로컬 아이템 JSON은 CWD 파일 경로가 아니라 classpath 리소스(`er-data/item-*.json`)에서 로드한다.
+- 메타데이터 로딩 실패를 로그로 남기도록 했다.
+- `stats`, `rank`, `rankings`, `data` 응답을 백엔드 DTO로 감싸 최소 응답 계약을 만들었다.
+
+### 현재 제공하는 API
+
+```text
+GET /api/er/users/search?nickname={nickname}
+GET /api/er/users/overview?nickname={nickname}&seasonId={seasonId}&matchingTeamMode={matchingTeamMode}
+GET /api/er/users/{userId}/stats?seasonId={seasonId}
+GET /api/er/users/{userId}/games?includeDetails={includeDetails}&detailLimit={detailLimit}
+GET /api/er/users/{userId}/rank?seasonId={seasonId}&matchingTeamMode={matchingTeamMode}
+GET /api/er/rankings/top?seasonId={seasonId}&matchingTeamMode={matchingTeamMode}
+GET /api/er/meta/characters?seasonId={seasonId}&matchingTeamMode={matchingTeamMode}&tier={tier}
+GET /api/er/games/{gameId}
+GET /api/er/data/{metaType}
+GET /openapi.yaml
+GET /actuator/health
+GET /actuator/info
+GET /actuator/metrics
+```
+
+### 응답 계약 변경
+
+- `/api/er/users/{userId}/stats`는 `UserStatsResponse`로 응답한다.
+- `/api/er/users/{userId}/rank`는 `UserRankResponse`로 응답한다.
+- `/api/er/rankings/top`은 `TopRankingsResponse`로 응답한다.
+- `/api/er/data/{metaType}`는 `DataTableResponse`로 응답한다.
+- 원본 ER API 응답은 각 DTO의 `raw` 또는 `data` 필드에 유지한다.
+
+---
+
 ## 2026-06-17
 
 ### 작업 요약
@@ -64,6 +107,8 @@ GET /api/er/users/overview?nickname={nickname}&seasonId={seasonId}&matchingTeamM
 GET /api/er/users/{userId}/stats?seasonId={seasonId}
 GET /api/er/users/{userId}/games
 GET /api/er/users/{userId}/rank?seasonId={seasonId}&matchingTeamMode={matchingTeamMode}
+GET /api/er/rankings/top?seasonId={seasonId}&matchingTeamMode={matchingTeamMode}
+GET /api/er/meta/characters?seasonId={seasonId}&matchingTeamMode={matchingTeamMode}&tier={tier}
 GET /api/er/games/{gameId}
 GET /api/er/data/{metaType}
 ```
