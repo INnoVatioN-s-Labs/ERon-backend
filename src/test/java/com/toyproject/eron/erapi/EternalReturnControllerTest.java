@@ -25,6 +25,7 @@ import com.toyproject.eron.erapi.dto.UserOverviewResponse;
 import com.toyproject.eron.erapi.dto.UserRankResponse;
 import com.toyproject.eron.erapi.dto.UserRecentStatsResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
+import com.toyproject.eron.erapi.dto.UserStatsResponse;
 import com.toyproject.eron.global.error.GlobalExceptionHandler;
 
 class EternalReturnControllerTest {
@@ -68,7 +69,7 @@ class EternalReturnControllerTest {
         when(eternalReturnService.getUserGames("abc-123", false, 3))
                 .thenReturn(new UserGamesResponse(
                         List.of(new UserGameSummary(
-                                98765,
+                                98765L,
                                 "testUser",
                                 39,
                                 3,
@@ -88,7 +89,7 @@ class EternalReturnControllerTest {
                                 "2026-05-30T23:15:29.029+0900",
                                 551
                         )),
-                        98765
+                        98765L
                 ));
 
         mockMvc.perform(get("/api/er/users/abc-123/games"))
@@ -126,7 +127,7 @@ class EternalReturnControllerTest {
                 .thenReturn(new UserGamesResponse(
                         List.of(
                                 new UserGameSummary(
-                                        98765,
+                                        98765L,
                                         "testUser",
                                         0,
                                         2,
@@ -147,7 +148,7 @@ class EternalReturnControllerTest {
                                         551
                                 ),
                                 new UserGameSummary(
-                                        98766,
+                                        98766L,
                                         "testUser",
                                         0,
                                         6,
@@ -168,7 +169,7 @@ class EternalReturnControllerTest {
                                         650
                                 ),
                                 new UserGameSummary(
-                                        98767,
+                                        98767L,
                                         "testUser",
                                         0,
                                         2,
@@ -189,7 +190,7 @@ class EternalReturnControllerTest {
                                         600
                                 )
                         ),
-                        98767
+                        98767L
                 ));
 
         mockMvc.perform(get("/api/er/users/abc-123/games"))
@@ -245,7 +246,7 @@ class EternalReturnControllerTest {
         when(eternalReturnService.getUserGames("abc-123", true, 1))
                 .thenReturn(new UserGamesResponse(
                         List.of(new UserGameSummary(
-                                98765,
+                                98765L,
                                 "testUser",
                                 39,
                                 3,
@@ -265,9 +266,9 @@ class EternalReturnControllerTest {
                                 "2026-05-30T23:15:29.029+0900",
                                 551
                         )),
-                        98765,
-                        Map.of(98765, new GameDetailResponse(
-                                98765,
+                        98765L,
+                        Map.of(98765L, new GameDetailResponse(
+                                98765L,
                                 39,
                                 3,
                                 3,
@@ -311,6 +312,41 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.detailsByGameId.98765.gameId").value(98765))
                 .andExpect(jsonPath("$.detailsByGameId.98765.participants[0].nickname").value("testUser"))
                 .andExpect(jsonPath("$.detailsByGameId.98765.participants[0].equipmentList[0].itemName").value("Test Item"));
+    }
+
+    @Test
+    void getUserGamesCanLoadNextPage() throws Exception {
+        when(eternalReturnService.getUserGames("abc-123", 98765L))
+                .thenReturn(new UserGamesResponse(
+                        List.of(new UserGameSummary(
+                                98764L,
+                                "testUser",
+                                39,
+                                3,
+                                3,
+                                1,
+                                "Jackie",
+                                5,
+                                2,
+                                1,
+                                1,
+                                8000,
+                                3,
+                                1500,
+                                1520,
+                                -20,
+                                1500,
+                                "2026-05-30T22:15:29.029+0900",
+                                500
+                        )),
+                        98764L
+                ));
+
+        mockMvc.perform(get("/api/er/users/abc-123/games")
+                        .param("next", "98765"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.games[0].gameId").value(98764))
+                .andExpect(jsonPath("$.next").value(98764));
     }
 
     @Test
@@ -408,9 +444,28 @@ class EternalReturnControllerTest {
                                         "rankScore", 4567
                                 )
                         ),
+                        new UserStatsResponse(
+                                "abc-123",
+                                28,
+                                List.of(Map.of(
+                                        "matchingTeamMode", 1,
+                                        "totalGames", 100,
+                                        "winRate", 0.1,
+                                        "averageRank", 4.2
+                                )),
+                                Map.of(
+                                        "code", 200,
+                                        "userStats", List.of(Map.of(
+                                                "matchingTeamMode", 1,
+                                                "totalGames", 100,
+                                                "winRate", 0.1,
+                                                "averageRank", 4.2
+                                        ))
+                                )
+                        ),
                         new UserGamesResponse(
                                 List.of(new UserGameSummary(
-                                        98765,
+                                        98765L,
                                         "testUser",
                                         39,
                                         3,
@@ -430,7 +485,7 @@ class EternalReturnControllerTest {
                                         "2026-05-30T23:15:29.029+0900",
                                         551
                                 )),
-                                98765
+                                98765L
                         ),
                         new UserRecentStatsResponse(
                                 1,
@@ -460,6 +515,8 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.rank.code").value(200))
                 .andExpect(jsonPath("$.rank.userRank.rank").value(123))
                 .andExpect(jsonPath("$.rank.userRank.rankScore").value(4567))
+                .andExpect(jsonPath("$.seasonStats.userStats[0].totalGames").value(100))
+                .andExpect(jsonPath("$.seasonStats.userStats[0].averageRank").value(4.2))
                 .andExpect(jsonPath("$.games.next").value(98765))
                 .andExpect(jsonPath("$.games.games[0].gameId").value(98765))
                 .andExpect(jsonPath("$.games.games[0].gameRank").value(3))
@@ -478,7 +535,7 @@ class EternalReturnControllerTest {
     void getGameReturnsMappedGameDetail() throws Exception {
         when(eternalReturnService.getGame(98765))
                 .thenReturn(new GameDetailResponse(
-                        98765,
+                        98765L,
                         39,
                         3,
                         3,
@@ -569,6 +626,29 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.participants[1].victory").value(0))
                 .andExpect(jsonPath("$.raw").doesNotExist())
                 .andExpect(jsonPath("$.participants[0].raw").doesNotExist());
+    }
+
+    @Test
+    void getGameAcceptsLargeGameId() throws Exception {
+        when(eternalReturnService.getGame(3_000_000_000L))
+                .thenReturn(new GameDetailResponse(
+                        3_000_000_000L,
+                        39,
+                        3,
+                        3,
+                        "2026-06-09T13:44:20.020+0900",
+                        614,
+                        609,
+                        8,
+                        0,
+                        List.of()
+                ));
+
+        mockMvc.perform(get("/api/er/games/3000000000"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.gameId").value(3_000_000_000L));
+
+        Mockito.verify(eternalReturnService).getGame(3_000_000_000L);
     }
 
     @Test

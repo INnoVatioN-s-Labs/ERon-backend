@@ -8,11 +8,11 @@ import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record UserGamesResponse(
         List<UserGameSummary> games,
-        Integer next,
-        Map<Integer, GameDetailResponse> detailsByGameId
+        Long next,
+        Map<Long, GameDetailResponse> detailsByGameId
 ) {
 
-    public UserGamesResponse(List<UserGameSummary> games, Integer next) {
+    public UserGamesResponse(List<UserGameSummary> games, Long next) {
         this(games, next, Map.of());
     }
 

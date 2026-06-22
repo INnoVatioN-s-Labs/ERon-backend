@@ -21,6 +21,7 @@ import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.TopRankingsResponse;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
+import com.toyproject.eron.erapi.dto.UserOverviewResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
 
 class EternalReturnServiceTest {
@@ -90,13 +91,36 @@ class EternalReturnServiceTest {
     }
 
     @Test
+    void getUserOverviewKeepsRecentGamesAndUsesOnlyRankedGamesForStats() {
+        when(eternalReturnApiClient.getUserByNickname("testUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "testUser", Map.of()));
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenReturn(Map.of("userRank", Map.of("rank", 123)));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(
+                        List.of(
+                                userGame(98765, 1, "Jackie", 2, 5),
+                                userGameWithSeason(98766, 0, 22, "Luke", 1, 20)
+                        ),
+                        98766L
+                ));
+
+        UserOverviewResponse response = eternalReturnService.getUserOverview("testUser", 39, 3);
+
+        assertThat(response.games().games()).hasSize(2);
+        assertThat(response.recentStats().gameCount()).isEqualTo(1);
+        assertThat(response.recentStats().top3Count()).isEqualTo(1);
+        assertThat(response.recentStats().averageKills()).isEqualTo(5.0);
+    }
+
+    @Test
     void getUserGamesIncludesLimitedGameDetailsWhenRequested() {
         UserGamesResponse games = new UserGamesResponse(
                 List.of(
                         userGame(98765, 1, "Jackie", 3, 5),
                         userGame(98766, 22, "Luke", 1, 7)
                 ),
-                98766
+                98766L
         );
         GameDetailResponse detail = gameDetailResponse(98765);
         when(eternalReturnApiClient.getUserGames("abc-123")).thenReturn(games);
@@ -105,7 +129,7 @@ class EternalReturnServiceTest {
         UserGamesResponse response = eternalReturnService.getUserGames("abc-123", true, 1);
 
         assertThat(response.games()).hasSize(2);
-        assertThat(response.detailsByGameId()).containsOnly(Map.entry(98765, detail));
+        assertThat(response.detailsByGameId()).containsOnly(Map.entry(98765L, detail));
         verify(eternalReturnApiClient).getUserGames("abc-123");
         verify(eternalReturnApiClient).getGame(98765);
         verify(eternalReturnApiClient, times(0)).getGame(98766);
@@ -132,7 +156,7 @@ class EternalReturnServiceTest {
                         userGame(98766, 22, "Luke", 1, 7),
                         userGame(98767, 45, "Mai", 2, 4)
                 ),
-                98767
+                98767L
         );
         GameDetailResponse detail = gameDetailResponse(98765);
         when(eternalReturnApiClient.getUserGames("abc-123")).thenReturn(games);
@@ -142,7 +166,7 @@ class EternalReturnServiceTest {
 
         UserGamesResponse response = eternalReturnService.getUserGames("abc-123", true, 3);
 
-        assertThat(response.detailsByGameId()).containsOnly(Map.entry(98765, detail));
+        assertThat(response.detailsByGameId()).containsOnly(Map.entry(98765L, detail));
         verify(eternalReturnApiClient).getGame(98765);
         verify(eternalReturnApiClient).getGame(98766);
         verify(eternalReturnApiClient, times(0)).getGame(98767);
@@ -180,6 +204,38 @@ class EternalReturnServiceTest {
                 .doesNotContainKey("recentStats");
         verify(eternalReturnApiClient).getUserByNickname("topUser");
         verify(eternalReturnApiClient).getUserGames("abc-123");
+    }
+
+    @Test
+    void getTopRankingsEnrichesRecentStatsWithRankedGamesOnly() {
+        when(eternalReturnApiClient.getTopRankings(39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "topRanks", List.of(Map.of(
+                                "rank", 1,
+                                "nickname", "topUser",
+                                "rankScore", 8320
+                        ))
+                ));
+        when(eternalReturnApiClient.getUserByNickname("topUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "topUser", Map.of()));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(
+                        List.of(
+                                userGame(98765, 1, "Jackie", 2, 5),
+                                userGameWithSeason(98766, 0, 22, "Luke", 1, 20)
+                        ),
+                        98766L
+                ));
+
+        TopRankingsResponse response = eternalReturnService.getTopRankings(39, 3);
+
+        assertThat(response.topRanks())
+                .singleElement()
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("top3Count", 1)
+                .containsEntry("averageKills", 5.0)
+                .containsEntry("mostPlayedCharacterName", "Jackie");
     }
 
     @Test
@@ -345,14 +401,14 @@ class EternalReturnServiceTest {
                 .containsEntry("averageKills", 4.0);
     }
 
-    private UserGamesResponse userGamesResponse(int gameId) {
+    private UserGamesResponse userGamesResponse(long gameId) {
         return new UserGamesResponse(
                 List.of(userGame(gameId, 1, "Jackie", 3, 5)),
                 gameId
         );
     }
 
-    private GameDetailResponse gameDetailResponse(int gameId) {
+    private GameDetailResponse gameDetailResponse(long gameId) {
         return new GameDetailResponse(
                 gameId,
                 39,
@@ -368,7 +424,18 @@ class EternalReturnServiceTest {
     }
 
     private UserGameSummary userGame(
-            int gameId,
+            long gameId,
+            int characterNum,
+            String characterName,
+            int gameRank,
+            int playerKill
+    ) {
+        return userGameWithSeason(gameId, 39, characterNum, characterName, gameRank, playerKill);
+    }
+
+    private UserGameSummary userGameWithSeason(
+            long gameId,
+            int seasonId,
             int characterNum,
             String characterName,
             int gameRank,
@@ -377,7 +444,7 @@ class EternalReturnServiceTest {
         return new UserGameSummary(
                 gameId,
                 "testUser",
-                39,
+                seasonId,
                 3,
                 3,
                 characterNum,

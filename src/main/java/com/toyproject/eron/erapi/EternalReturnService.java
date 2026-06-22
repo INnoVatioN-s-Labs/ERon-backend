@@ -39,7 +39,7 @@ public class EternalReturnService {
     private final Duration userGamesCacheTtl;
     private final Clock clock;
     private final Cache<String, CacheEntry<UserGamesResponse>> userGamesCache;
-    private final Cache<Integer, CacheEntry<GameDetailResponse>> gameDetailCache;
+    private final Cache<Long, CacheEntry<GameDetailResponse>> gameDetailCache;
     private final Cache<String, CacheEntry<Map<String, Object>>> topRankingsCache;
     private final Cache<String, CacheEntry<UserSearchResponse>> userSearchCache;
 
@@ -80,8 +80,9 @@ public class EternalReturnService {
     public UserOverviewResponse getUserOverview(String nickname, int seasonId, int matchingTeamMode) {
         UserSearchResponse user = getCachedUserByNickname(nickname);
         Map<String, Object> rank = eternalReturnApiClient.getUserRank(user.userId(), seasonId, matchingTeamMode);
+        UserStatsResponse seasonStats = getUserStats(user.userId(), seasonId);
         UserGamesResponse games = getUserGames(user.userId());
-        return new UserOverviewResponse(user, rank, games, UserRecentStatsResponse.from(games));
+        return new UserOverviewResponse(user, rank, seasonStats, games, UserRecentStatsResponse.from(rankedOnly(games)));
     }
 
     public UserStatsResponse getUserStats(String userId, int seasonId) {
@@ -90,30 +91,47 @@ public class EternalReturnService {
     }
 
     public UserGamesResponse getUserGames(String userId) {
+        return getUserGames(userId, null);
+    }
+
+    public UserGamesResponse getUserGames(String userId, Long next) {
         if (userGamesCacheTtl.isZero() || userGamesCacheTtl.isNegative()) {
-            return eternalReturnApiClient.getUserGames(userId);
+            return next == null
+                    ? eternalReturnApiClient.getUserGames(userId)
+                    : eternalReturnApiClient.getUserGames(userId, next);
         }
 
+        String cacheKey = userGamesCacheKey(userId, next);
         Instant now = clock.instant();
-        CacheEntry<UserGamesResponse> cached = userGamesCache.getIfPresent(userId);
+        CacheEntry<UserGamesResponse> cached = userGamesCache.getIfPresent(cacheKey);
         if (isAlive(cached, now)) {
             return cached.value();
         }
-        userGamesCache.invalidate(userId);
+        userGamesCache.invalidate(cacheKey);
 
-        UserGamesResponse response = eternalReturnApiClient.getUserGames(userId);
-        userGamesCache.put(userId, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
+        UserGamesResponse response = next == null
+                ? eternalReturnApiClient.getUserGames(userId)
+                : eternalReturnApiClient.getUserGames(userId, next);
+        userGamesCache.put(cacheKey, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
         return response;
     }
 
     public UserGamesResponse getUserGames(String userId, boolean includeDetails, int detailLimit) {
         UserGamesResponse response = getUserGames(userId);
-        if (!includeDetails || detailLimit <= 0 || response.games().isEmpty()) {
+        if (!includeDetails) {
+            return response;
+        }
+
+        return withGameDetails(response, detailLimit);
+    }
+
+    public UserGamesResponse withGameDetails(UserGamesResponse response, int detailLimit) {
+        if (detailLimit <= 0 || response.games().isEmpty()) {
             return response;
         }
 
         int clampedDetailLimit = Math.min(detailLimit, USER_GAMES_DETAIL_LIMIT_MAX);
-        Map<Integer, GameDetailResponse> detailsByGameId = new LinkedHashMap<>();
+        Map<Long, GameDetailResponse> detailsByGameId = new LinkedHashMap<>();
         for (int index = 0; index < response.games().size() && index < clampedDetailLimit; index++) {
             if (!addGameDetail(detailsByGameId, response.games().get(index).gameId())) {
                 break;
@@ -166,7 +184,7 @@ public class EternalReturnService {
         );
     }
 
-    public GameDetailResponse getGame(int gameId) {
+    public GameDetailResponse getGame(long gameId) {
         return getCachedGame(gameId);
     }
 
@@ -201,7 +219,7 @@ public class EternalReturnService {
         return response;
     }
 
-    private boolean addGameDetail(Map<Integer, GameDetailResponse> detailsByGameId, Integer gameId) {
+    private boolean addGameDetail(Map<Long, GameDetailResponse> detailsByGameId, Long gameId) {
         if (gameId == null) {
             return true;
         }
@@ -214,7 +232,7 @@ public class EternalReturnService {
         }
     }
 
-    private GameDetailResponse getCachedGame(int gameId) {
+    private GameDetailResponse getCachedGame(long gameId) {
         if (userGamesCacheTtl.isZero() || userGamesCacheTtl.isNegative()) {
             return eternalReturnApiClient.getGame(gameId);
         }
@@ -337,7 +355,23 @@ public class EternalReturnService {
         }
 
         ranking.putIfAbsent("userId", userId);
-        return putRecentStats(ranking, UserRecentStatsResponse.from(getUserGames(userId)));
+        return putRecentStats(ranking, UserRecentStatsResponse.from(rankedOnly(getUserGames(userId))));
+    }
+
+    private UserGamesResponse rankedOnly(UserGamesResponse games) {
+        List<UserGameSummary> rankedGames = games.games()
+                .stream()
+                .filter(this::isRankedGame)
+                .toList();
+        return new UserGamesResponse(rankedGames, games.next());
+    }
+
+    private boolean isRankedGame(UserGameSummary game) {
+        return game.seasonId() != null && game.seasonId() > 0;
+    }
+
+    private String userGamesCacheKey(String userId, Long next) {
+        return userId + ":" + (next == null ? "first" : next);
     }
 
     private Map<String, Object> enrichRankingWithEmptyStats(Map<String, Object> ranking) {

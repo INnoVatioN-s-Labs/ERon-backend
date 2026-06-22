@@ -56,9 +56,19 @@ public class EternalReturnController {
     public UserGamesResponse getUserGames(
             @PathVariable @NotBlank String userId,
             @RequestParam(defaultValue = "false") boolean includeDetails,
-            @RequestParam(defaultValue = "3") @PositiveOrZero int detailLimit
+            @RequestParam(defaultValue = "3") @PositiveOrZero int detailLimit,
+            @RequestParam(required = false) @Positive Long next
     ) {
-        return eternalReturnService.getUserGames(userId, includeDetails, detailLimit);
+        if (next == null) {
+            return eternalReturnService.getUserGames(userId, includeDetails, detailLimit);
+        }
+
+        UserGamesResponse response = eternalReturnService.getUserGames(userId, next);
+        if (!includeDetails) {
+            return response;
+        }
+
+        return eternalReturnService.withGameDetails(response, detailLimit);
     }
 
     @GetMapping("/users/{userId}/rank")
@@ -88,7 +98,7 @@ public class EternalReturnController {
     }
 
     @GetMapping("/games/{gameId}")
-    public GameDetailResponse getGame(@PathVariable @Positive int gameId) {
+    public GameDetailResponse getGame(@PathVariable @Positive long gameId) {
         return eternalReturnService.getGame(gameId);
     }
 
