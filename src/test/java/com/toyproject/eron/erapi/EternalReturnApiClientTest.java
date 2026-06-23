@@ -174,16 +174,17 @@ class EternalReturnApiClientTest {
                     assertThat(game.startDtm()).isEqualTo("2026-05-30T23:15:29.029+0900");
                     assertThat(game.playTime()).isEqualTo(551);
                 });
-        assertThat(capturedRequests).hasSize(2);
+        assertThat(capturedRequests).hasSize(3);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/user/games/uid/abc-123");
         assertThat(capturedRequests.get(0).query()).isNull();
         assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
-        assertThat(capturedRequests.get(1).path()).isEqualTo("/data/Character");
+        assertThat(capturedRequests.get(1).path()).isEqualTo("/l10n/Korean");
         assertThat(capturedRequests.get(1).apiKey()).isEqualTo("test-api-key");
+        assertThat(capturedRequests.get(2).path()).isEqualTo("/l10n-file/Korean");
     }
 
     @Test
-    void localKoreanCharacterNameOverridesApiName() {
+    void usesKoreanCharacterNameFromL10n() {
         server.createContext("/user/games/uid/abc-123", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
             writeJson(exchange, 200, """
@@ -276,7 +277,7 @@ class EternalReturnApiClientTest {
         UserGamesResponse response = client.getUserGames("abc-123");
 
         assertThat(response.games()).hasSize(2);
-        assertThat(response.games().get(0).characterName()).isEqualTo("알론소");
+        assertThat(response.games().get(0).characterName()).isEqualTo("실험체 68");
         assertThat(response.games().get(1).characterName()).isEqualTo("실험체 999");
     }
 
@@ -526,16 +527,17 @@ class EternalReturnApiClientTest {
                     assertThat(participant.characterNum()).isEqualTo(68);
                     assertThat(participant.characterName()).isEqualTo("알론소");
                 });
-        assertThat(capturedRequests).hasSize(4);
+        assertThat(capturedRequests).hasSize(5);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/games/98765");
         assertThat(capturedRequests.get(0).query()).isNull();
         assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
-        assertThat(capturedRequests.get(1).path()).isEqualTo("/data/Character");
+        assertThat(capturedRequests.get(1).path()).isEqualTo("/l10n/Korean");
         assertThat(capturedRequests.get(1).apiKey()).isEqualTo("test-api-key");
-        assertThat(capturedRequests.get(2).path()).isEqualTo("/data/ItemWeapon");
-        assertThat(capturedRequests.get(2).apiKey()).isEqualTo("test-api-key");
-        assertThat(capturedRequests.get(3).path()).isEqualTo("/data/ItemArmor");
+        assertThat(capturedRequests.get(2).path()).isEqualTo("/l10n-file/Korean");
+        assertThat(capturedRequests.get(3).path()).isEqualTo("/data/ItemWeapon");
         assertThat(capturedRequests.get(3).apiKey()).isEqualTo("test-api-key");
+        assertThat(capturedRequests.get(4).path()).isEqualTo("/data/ItemArmor");
+        assertThat(capturedRequests.get(4).apiKey()).isEqualTo("test-api-key");
     }
 
     @Test
@@ -701,7 +703,8 @@ class EternalReturnApiClientTest {
         assertThat(capturedRequests).extracting(CapturedRequest::path)
                 .containsExactly(
                         "/user/games/uid/abc-123",
-                        "/data/Character",
+                        "/l10n/Korean",
+                        "/l10n-file/Korean",
                         "/games/98765",
                         "/data/ItemWeapon",
                         "/data/ItemArmor"
@@ -875,7 +878,8 @@ class EternalReturnApiClientTest {
                         "/rank/uid/abc-123/28/1",
                         "/user/stats/uid/abc-123/28",
                         "/user/games/uid/abc-123",
-                        "/data/Character"
+                        "/l10n/Korean",
+                        "/l10n-file/Korean"
                 );
         assertThat(capturedRequests).allSatisfy(request -> assertThat(request.apiKey()).isEqualTo("test-api-key"));
     }
@@ -905,47 +909,37 @@ class EternalReturnApiClientTest {
     }
 
     private void createCharacterDataContext() {
-        server.createContext("/data/Character", exchange -> {
-            capturedRequests.add(CapturedRequest.from(exchange));
-            writeJson(exchange, 200, """
-                    {
-                      "code": 200,
-                      "message": "Success",
-                      "data": [
-                        {
-                          "code": 1,
-                          "name": "Jackie"
-                        },
-                        {
-                          "code": 22,
-                          "name": "Luke"
-                        },
-                        {
-                          "code": 45,
-                          "name": "Celine"
-                        }
-                      ]
-                    }
-                    """);
-        });
+        createCharacterL10nContext(String.join("\n",
+                "Character/Name/1┃재키",
+                "Character/Name/22┃루크",
+                "Character/Name/45┃마이",
+                "Character/Name/68┃알론소",
+                "GameResult/Character/Name/1┃Jackie"));
     }
 
     private void createCharacterDataContextWithAlonsoOverride() {
-        server.createContext("/data/Character", exchange -> {
+        createCharacterL10nContext("Character/Name/68┃알론소");
+    }
+
+    private void createCharacterL10nContext(String l10nFileBody) {
+        server.createContext("/l10n/Korean", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
             writeJson(exchange, 200, """
                     {
                       "code": 200,
                       "message": "Success",
-                      "data": [
-                        {
-                          "code": 68,
-                          "name": "Api Alonso"
-                        }
-                      ]
+                      "data": { "l10Path": "%s" }
                     }
-                    """);
+                    """.formatted(l10nFileUrl()));
         });
+        server.createContext("/l10n-file/Korean", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeText(exchange, 200, l10nFileBody);
+        });
+    }
+
+    private String l10nFileUrl() {
+        return "http://localhost:" + server.getAddress().getPort() + "/l10n-file/Korean";
     }
 
     private void createEquipmentDataContexts() {
@@ -996,6 +990,16 @@ class EternalReturnApiClientTest {
     private void writeJson(HttpExchange exchange, int status, String body) throws IOException {
         byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
         exchange.getResponseHeaders().add(HttpHeaders.CONTENT_TYPE, "application/json");
+        exchange.sendResponseHeaders(status, bytes.length);
+
+        try (OutputStream outputStream = exchange.getResponseBody()) {
+            outputStream.write(bytes);
+        }
+    }
+
+    private void writeText(HttpExchange exchange, int status, String body) throws IOException {
+        byte[] bytes = body.getBytes(StandardCharsets.UTF_8);
+        exchange.getResponseHeaders().add(HttpHeaders.CONTENT_TYPE, "text/plain; charset=utf-8");
         exchange.sendResponseHeaders(status, bytes.length);
 
         try (OutputStream outputStream = exchange.getResponseBody()) {

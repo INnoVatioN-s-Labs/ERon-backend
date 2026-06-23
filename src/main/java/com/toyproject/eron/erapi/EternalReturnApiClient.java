@@ -2,6 +2,7 @@ package com.toyproject.eron.erapi;
 
 import java.io.IOException;
 import java.io.InputStream;
+import java.net.URI;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
 import java.util.Map;
@@ -41,76 +42,14 @@ public class EternalReturnApiClient {
             };
     private static final Pattern LOCAL_NAME_ENTRY_PATTERN =
             Pattern.compile("\"code\"\\s*:\\s*(\\d+).*?\"name\"\\s*:\\s*\"([^\"]+)\"");
-    private static final Map<Integer, String> LOCAL_CHARACTER_NAMES_BY_CODE = Map.ofEntries(
-            Map.entry(1, "재키"),
-            Map.entry(2, "아야"),
-            Map.entry(3, "피오라"),
-            Map.entry(4, "매그너스"),
-            Map.entry(5, "자히르"),
-            Map.entry(6, "나딘"),
-            Map.entry(7, "현우"),
-            Map.entry(8, "하트"),
-            Map.entry(9, "아이솔"),
-            Map.entry(10, "리 다이린"),
-            Map.entry(11, "유키"),
-            Map.entry(12, "혜진"),
-            Map.entry(13, "쇼우"),
-            Map.entry(14, "키아라"),
-            Map.entry(15, "시셀라"),
-            Map.entry(16, "실비아"),
-            Map.entry(17, "아드리아나"),
-            Map.entry(18, "쇼이치"),
-            Map.entry(19, "엠마"),
-            Map.entry(20, "레녹스"),
-            Map.entry(21, "로지"),
-            Map.entry(22, "루크"),
-            Map.entry(23, "캐시"),
-            Map.entry(24, "아델라"),
-            Map.entry(25, "버니스"),
-            Map.entry(26, "바바라"),
-            Map.entry(27, "알렉스"),
-            Map.entry(28, "수아"),
-            Map.entry(29, "레온"),
-            Map.entry(30, "일레븐"),
-            Map.entry(31, "리오"),
-            Map.entry(32, "윌리엄"),
-            Map.entry(33, "니키"),
-            Map.entry(34, "나타폰"),
-            Map.entry(35, "얀"),
-            Map.entry(36, "에바"),
-            Map.entry(37, "다니엘"),
-            Map.entry(38, "제니"),
-            Map.entry(39, "카밀로"),
-            Map.entry(40, "클로에"),
-            Map.entry(41, "요한"),
-            Map.entry(42, "비앙카"),
-            Map.entry(43, "셀린"),
-            Map.entry(44, "에키온"),
-            Map.entry(45, "마이"),
-            Map.entry(46, "에이든"),
-            Map.entry(47, "라우라"),
-            Map.entry(48, "띠아"),
-            Map.entry(49, "펠릭스"),
-            Map.entry(50, "엘레나"),
-            Map.entry(51, "프리야"),
-            Map.entry(52, "아디나"),
-            Map.entry(53, "마커스"),
-            Map.entry(54, "칼라"),
-            Map.entry(55, "에스텔"),
-            Map.entry(56, "피올로"),
-            Map.entry(57, "마르티나"),
-            Map.entry(58, "헤이즈"),
-            Map.entry(59, "아이작"),
-            Map.entry(60, "타지아"),
-            Map.entry(61, "이렘"),
-            Map.entry(62, "테오도르"),
-            Map.entry(63, "리안"),
-            Map.entry(64, "바냐"),
-            Map.entry(68, "알론소")
-    );
+    // 공식 l10n 텍스트의 한 줄 형식: Character/Name/{코드}<구분자>{한글명}
+    // (구분자는 '┃' U+2503 이지만 버전에 흔들려도 되도록 \D 한 글자로 매칭)
+    private static final Pattern L10N_CHARACTER_NAME_PATTERN =
+            Pattern.compile("^Character/Name/(\\d+)\\D(.+)$", Pattern.MULTILINE);
 
     private final RestClient restClient;
     private final EternalReturnApiProperties properties;
+    private final CharacterNameResolver characterNameResolver = new CharacterNameResolver();
     private volatile Map<Integer, String> characterNamesByCodeCache;
     private volatile Map<Integer, String> equipmentNamesByCodeCache;
 
@@ -424,11 +363,7 @@ public class EternalReturnApiClient {
     }
 
     private String characterNameFor(Integer characterNum, Map<Integer, String> characterNamesByCode) {
-        if (characterNum == null) {
-            return null;
-        }
-
-        return characterNamesByCode.getOrDefault(characterNum, "실험체 " + characterNum);
+        return characterNameResolver.resolve(characterNum, characterNamesByCode.get(characterNum));
     }
 
     private String equipmentNameFor(Integer itemCode, Map<Integer, String> equipmentNamesByCode) {
@@ -447,7 +382,12 @@ public class EternalReturnApiClient {
 
         synchronized (this) {
             if (characterNamesByCodeCache == null) {
-                characterNamesByCodeCache = loadCharacterNamesByCode();
+                Map<Integer, String> loaded = loadCharacterNamesByCode();
+                if (loaded.isEmpty()) {
+                    // 일시적 l10n/API 장애를 영구 캐싱하지 않는다. 다음 호출에서 재시도해 자가복구.
+                    return loaded;
+                }
+                characterNamesByCodeCache = loaded;
             }
 
             return characterNamesByCodeCache;
@@ -455,10 +395,67 @@ public class EternalReturnApiClient {
     }
 
     private Map<Integer, String> loadCharacterNamesByCode() {
-        Map<Integer, String> characterNamesByCode = new java.util.HashMap<>(loadNamesByCode("Character"));
-        characterNamesByCode.putAll(LOCAL_CHARACTER_NAMES_BY_CODE);
+        // 공식 /data/Character 는 영문명을 주고 코드 64까지만 반영돼 신규 실험체가 누락된다.
+        // 대신 공식 l10n(한글) 파일에서 코드→한글명을 불러온다. 신규 실험체도 자동 포함된다.
+        Map<Integer, String> fromL10n = loadCharacterNamesFromL10n("Korean");
+        if (!fromL10n.isEmpty()) {
+            return fromL10n;
+        }
 
-        return Map.copyOf(characterNamesByCode);
+        // l10n 호출/파싱 실패 시, 영문이라도 표시되도록 /data/Character 로 폴백한다.
+        log.warn("Falling back to /data/Character (English) because Korean l10n character names were unavailable.");
+        return loadNamesByCode("Character");
+    }
+
+    /**
+     * 공식 l10n 엔드포인트에서 실험체 코드→한글명을 불러온다.
+     *
+     * <p>두 단계로 동작한다. (1) {@code /l10n/{language}} 가 실제 l10n 텍스트 파일의 URL을 주고,
+     * (2) 그 URL을 내려받아 {@code Character/Name/{코드}} 항목만 추려 맵으로 만든다.
+     */
+    private Map<Integer, String> loadCharacterNamesFromL10n(String language) {
+        try {
+            String fileUrl = l10nFilePath(getJson("/l10n/{language}", language));
+            if (fileUrl == null) {
+                return Map.of();
+            }
+
+            byte[] body = restClient.get()
+                    .uri(URI.create(fileUrl))
+                    .retrieve()
+                    .body(byte[].class);
+            if (body == null) {
+                return Map.of();
+            }
+
+            return parseCharacterNamesFromL10n(new String(body, StandardCharsets.UTF_8));
+        } catch (EternalReturnApiException | HttpStatusCodeException | ResourceAccessException exception) {
+            log.warn("Failed to load Korean character names from l10n: {}", exception.toString());
+            return Map.of();
+        }
+    }
+
+    private String l10nFilePath(Map<String, Object> l10nMeta) {
+        Map<String, Object> data = asMap(l10nMeta.get("data"));
+        if (data == null) {
+            return null;
+        }
+
+        String path = valueAsString(data.get("l10Path"));
+        return StringUtils.hasText(path) ? path : null;
+    }
+
+    private Map<Integer, String> parseCharacterNamesFromL10n(String body) {
+        Map<Integer, String> namesByCode = new java.util.HashMap<>();
+        Matcher matcher = L10N_CHARACTER_NAME_PATTERN.matcher(body);
+        while (matcher.find()) {
+            String name = matcher.group(2).trim();
+            if (!name.isEmpty()) {
+                namesByCode.put(Integer.parseInt(matcher.group(1)), name);
+            }
+        }
+
+        return namesByCode;
     }
 
     private Map<Integer, String> getEquipmentNamesByCode() {
