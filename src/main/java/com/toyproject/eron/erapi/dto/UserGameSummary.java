@@ -1,5 +1,7 @@
 package com.toyproject.eron.erapi.dto;
 
+import java.util.List;
+
 import com.fasterxml.jackson.annotation.JsonProperty;
 
 public record UserGameSummary(
@@ -21,8 +23,64 @@ public record UserGameSummary(
         Integer mmrGain,
         Integer mmrAfter,
         String startDtm,
-        Integer playTime
+        Integer playTime,
+        Integer bestWeapon,
+        String bestWeaponName,
+        Integer bestWeaponLevel,
+        Integer tacticalSkillGroupCode,
+        String tacticalSkill,
+        List<TraitSummary> traits
 ) {
+
+    public UserGameSummary(
+            Long gameId,
+            String nickname,
+            Integer seasonId,
+            Integer matchingMode,
+            Integer matchingTeamMode,
+            Integer characterNum,
+            String characterName,
+            Integer gameRank,
+            Integer playerKill,
+            Integer playerAssistant,
+            Integer playerDeaths,
+            Integer damageToPlayer,
+            Integer teamKill,
+            Integer rankPoint,
+            Integer mmrBefore,
+            Integer mmrGain,
+            Integer mmrAfter,
+            String startDtm,
+            Integer playTime
+    ) {
+        this(
+                gameId,
+                nickname,
+                seasonId,
+                matchingMode,
+                matchingTeamMode,
+                characterNum,
+                characterName,
+                gameRank,
+                playerKill,
+                playerAssistant,
+                playerDeaths,
+                damageToPlayer,
+                teamKill,
+                rankPoint,
+                mmrBefore,
+                mmrGain,
+                mmrAfter,
+                startDtm,
+                playTime,
+                null,
+                null,
+                null,
+                null,
+                null,
+                List.of()
+        );
+    }
 
     @JsonProperty("modeKey")
     public String modeKey() {

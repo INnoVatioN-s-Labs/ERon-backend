@@ -18,6 +18,7 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.toyproject.eron.erapi.dto.EquipmentSummary;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.GameParticipantSummary;
+import com.toyproject.eron.erapi.dto.TraitSummary;
 import com.toyproject.eron.erapi.dto.TopRankingsResponse;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
@@ -567,7 +568,10 @@ class EternalReturnControllerTest {
                                         0,
                                         1,
                                         609,
-                                        Map.of("0", new EquipmentSummary(114702, "Longbow", 6))
+                                        Map.of("0", new EquipmentSummary(114702, "Longbow", 6)),
+                                        130,
+                                        "전장의 일격",
+                                        List.of(new TraitSummary(7000401, "흡혈마"))
                                 ),
                                 new GameParticipantSummary(
                                         "runnerUp",
@@ -622,6 +626,10 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.participants[0].equipmentList[0].itemCode").value(114702))
                 .andExpect(jsonPath("$.participants[0].equipmentList[0].itemName").value("Longbow"))
                 .andExpect(jsonPath("$.participants[0].equipmentList[0].itemGrade").value(6))
+                .andExpect(jsonPath("$.participants[0].tacticalSkillGroupCode").value(130))
+                .andExpect(jsonPath("$.participants[0].tacticalSkill").value("전장의 일격"))
+                .andExpect(jsonPath("$.participants[0].traits[0].traitCode").value(7000401))
+                .andExpect(jsonPath("$.participants[0].traits[0].traitName").value("흡혈마"))
                 .andExpect(jsonPath("$.participants[1].nickname").value("runnerUp"))
                 .andExpect(jsonPath("$.participants[1].victory").value(0))
                 .andExpect(jsonPath("$.raw").doesNotExist())
