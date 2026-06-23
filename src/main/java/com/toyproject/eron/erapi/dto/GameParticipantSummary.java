@@ -28,8 +28,64 @@ public record GameParticipantSummary(
         Integer rankPoint,
         Integer victory,
         Integer playTime,
-        Map<String, EquipmentSummary> equipment
+        Map<String, EquipmentSummary> equipment,
+        Integer tacticalSkillGroupCode,
+        String tacticalSkill,
+        List<TraitSummary> traits
 ) {
+
+    public GameParticipantSummary(
+            String nickname,
+            Integer teamNumber,
+            Integer gameRank,
+            Integer characterNum,
+            String characterName,
+            Integer characterLevel,
+            Integer playerKill,
+            Integer playerAssistant,
+            Integer playerDeaths,
+            Integer monsterKill,
+            Integer teamKill,
+            Integer damageToPlayer,
+            Integer damageFromPlayer,
+            Integer damageToMonster,
+            Integer healAmount,
+            Integer protectAbsorb,
+            Integer bestWeapon,
+            Integer bestWeaponLevel,
+            Integer rankPoint,
+            Integer victory,
+            Integer playTime,
+            Map<String, EquipmentSummary> equipment
+    ) {
+        this(
+                nickname,
+                teamNumber,
+                gameRank,
+                characterNum,
+                characterName,
+                characterLevel,
+                playerKill,
+                playerAssistant,
+                playerDeaths,
+                monsterKill,
+                teamKill,
+                damageToPlayer,
+                damageFromPlayer,
+                damageToMonster,
+                healAmount,
+                protectAbsorb,
+                bestWeapon,
+                bestWeaponLevel,
+                rankPoint,
+                victory,
+                playTime,
+                equipment,
+                null,
+                null,
+                List.of()
+        );
+    }
 
     @JsonProperty("equipmentList")
     public List<EquipmentSummary> equipmentList() {

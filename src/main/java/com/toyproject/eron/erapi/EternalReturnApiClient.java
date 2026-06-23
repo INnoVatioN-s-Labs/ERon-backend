@@ -3,6 +3,8 @@ package com.toyproject.eron.erapi;
 import java.io.IOException;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -24,6 +26,7 @@ import org.springframework.web.client.RestClient;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.GameParticipantSummary;
 import com.toyproject.eron.erapi.dto.EquipmentSummary;
+import com.toyproject.eron.erapi.dto.TraitSummary;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
@@ -108,11 +111,75 @@ public class EternalReturnApiClient {
             Map.entry(64, "바냐"),
             Map.entry(68, "알론소")
     );
+    private static final Map<Integer, Integer> TACTICAL_SKILL_GROUPS = Map.ofEntries(
+            Map.entry(30, 4_000_000),
+            Map.entry(40, 4_001_000),
+            Map.entry(50, 4_101_000),
+            Map.entry(60, 4_102_000),
+            Map.entry(70, 4_103_000),
+            Map.entry(80, 4_104_000),
+            Map.entry(90, 4_105_000),
+            Map.entry(110, 4_107_000),
+            Map.entry(120, 4_110_000),
+            Map.entry(130, 4_112_000),
+            Map.entry(140, 4_113_000),
+            Map.entry(150, 4_108_000),
+            Map.entry(500010, 4_501_000),
+            Map.entry(500020, 4_502_000),
+            Map.entry(500030, 4_503_000),
+            Map.entry(500040, 4_504_000),
+            Map.entry(500050, 4_505_000),
+            Map.entry(500060, 4_506_000),
+            Map.entry(500070, 4_507_000),
+            Map.entry(500080, 4_508_000),
+            Map.entry(500090, 4_509_000),
+            Map.entry(500100, 4_510_000),
+            Map.entry(500110, 4_511_000),
+            Map.entry(500120, 4_000_000),
+            Map.entry(500130, 4_001_000),
+            Map.entry(500140, 4_101_000),
+            Map.entry(500150, 4_102_000),
+            Map.entry(500160, 4_103_000),
+            Map.entry(500170, 4_104_000),
+            Map.entry(500180, 4_105_000),
+            Map.entry(500190, 4_107_000),
+            Map.entry(500200, 4_110_000),
+            Map.entry(500210, 4_112_000),
+            Map.entry(500220, 4_113_000),
+            Map.entry(500230, 4_108_000)
+    );
+    private static final Map<Integer, String> WEAPON_MASTERY_NAMES = Map.ofEntries(
+            Map.entry(1, "글러브"),
+            Map.entry(2, "톤파"),
+            Map.entry(3, "방망이"),
+            Map.entry(4, "채찍"),
+            Map.entry(5, "투척"),
+            Map.entry(6, "암기"),
+            Map.entry(7, "활"),
+            Map.entry(8, "석궁"),
+            Map.entry(9, "권총"),
+            Map.entry(10, "돌격소총"),
+            Map.entry(11, "저격총"),
+            Map.entry(13, "망치"),
+            Map.entry(14, "도끼"),
+            Map.entry(15, "한손검"),
+            Map.entry(16, "양손검"),
+            Map.entry(17, "창"),
+            Map.entry(18, "쌍검"),
+            Map.entry(19, "창"),
+            Map.entry(20, "쌍절곤"),
+            Map.entry(21, "레이피어"),
+            Map.entry(22, "기타"),
+            Map.entry(23, "카메라"),
+            Map.entry(24, "아르카나"),
+            Map.entry(25, "VF 의수")
+    );
 
     private final RestClient restClient;
     private final EternalReturnApiProperties properties;
     private volatile Map<Integer, String> characterNamesByCodeCache;
     private volatile Map<Integer, String> equipmentNamesByCodeCache;
+    private volatile Map<String, String> koreanL10nCache;
 
     public EternalReturnApiClient(RestClient eternalReturnRestClient, EternalReturnApiProperties properties) {
         this.restClient = eternalReturnRestClient;
@@ -180,7 +247,10 @@ public class EternalReturnApiClient {
         } else {
             response = getUserGamesJson(userId, next);
         }
-        return toUserGamesResponse(response, getCharacterNamesByCode());
+        Map<String, String> koreanL10n = hasTacticalSkillOrTraits(response)
+                ? getKoreanL10n()
+                : Map.of();
+        return toUserGamesResponse(response, getCharacterNamesByCode(), koreanL10n);
     }
 
     private Map<String, Object> getUserGamesJson(String userId, Long next) {
@@ -212,7 +282,10 @@ public class EternalReturnApiClient {
 
     public GameDetailResponse getGame(long gameId) {
         Map<String, Object> response = getJson("/games/{gameId}", gameId);
-        return toGameDetailResponse(response, getCharacterNamesByCode(), getEquipmentNamesByCode());
+        Map<String, String> koreanL10n = hasTacticalSkillOrTraits(response)
+                ? getKoreanL10n()
+                : Map.of();
+        return toGameDetailResponse(response, getCharacterNamesByCode(), getEquipmentNamesByCode(), koreanL10n);
     }
 
     public Map<String, Object> getDataTable(String metaType) {
@@ -271,22 +344,32 @@ public class EternalReturnApiClient {
                 .toList();
     }
 
-    private UserGamesResponse toUserGamesResponse(Map<String, Object> response, Map<Integer, String> characterNamesByCode) {
+    private UserGamesResponse toUserGamesResponse(
+            Map<String, Object> response,
+            Map<Integer, String> characterNamesByCode,
+            Map<String, String> koreanL10n
+    ) {
         List<UserGameSummary> games = List.of();
         List<?> userGames = userGamesFrom(response);
         if (!userGames.isEmpty()) {
             games = userGames.stream()
                     .map(this::asMap)
                     .filter(game -> game != null)
-                    .map(game -> toUserGameSummary(game, characterNamesByCode))
+                    .map(game -> toUserGameSummary(game, characterNamesByCode, koreanL10n))
                     .toList();
         }
 
         return new UserGamesResponse(games, toLong(response.get("next")));
     }
 
-    private UserGameSummary toUserGameSummary(Map<String, Object> game, Map<Integer, String> characterNamesByCode) {
+    private UserGameSummary toUserGameSummary(
+            Map<String, Object> game,
+            Map<Integer, String> characterNamesByCode,
+            Map<String, String> koreanL10n
+    ) {
         Integer characterNum = toInteger(game.get("characterNum"));
+        Integer tacticalSkillGroupCode = tacticalSkillGroupCode(game);
+        Integer bestWeapon = toInteger(game.get("bestWeapon"));
 
         return new UserGameSummary(
                 toLong(game.get("gameId")),
@@ -307,20 +390,35 @@ public class EternalReturnApiClient {
                 toInteger(game.get("mmrGain")),
                 toInteger(game.get("mmrAfter")),
                 valueAsString(game.get("startDtm")),
-                toInteger(game.get("playTime"))
+                toInteger(game.get("playTime")),
+                bestWeapon,
+                weaponMasteryNameFor(bestWeapon),
+                toInteger(game.get("bestWeaponLevel")),
+                tacticalSkillGroupCode,
+                tacticalSkillNameFor(tacticalSkillGroupCode, koreanL10n),
+                toTraitSummaries(game, koreanL10n)
         );
+    }
+
+    private String weaponMasteryNameFor(Integer bestWeapon) {
+        if (bestWeapon == null) {
+            return null;
+        }
+
+        return WEAPON_MASTERY_NAMES.getOrDefault(bestWeapon, "무기 마스터리 " + bestWeapon);
     }
 
     private GameDetailResponse toGameDetailResponse(
             Map<String, Object> response,
             Map<Integer, String> characterNamesByCode,
-            Map<Integer, String> equipmentNamesByCode
+            Map<Integer, String> equipmentNamesByCode,
+            Map<String, String> koreanL10n
     ) {
         List<?> userGames = userGamesFrom(response);
         List<GameParticipantSummary> participants = userGames.stream()
                 .map(this::asMap)
                 .filter(game -> game != null)
-                .map(game -> toGameParticipantSummary(game, characterNamesByCode, equipmentNamesByCode))
+                .map(game -> toGameParticipantSummary(game, characterNamesByCode, equipmentNamesByCode, koreanL10n))
                 .toList();
 
         Map<String, Object> firstGame = firstUserGame(response);
@@ -368,9 +466,11 @@ public class EternalReturnApiClient {
     private GameParticipantSummary toGameParticipantSummary(
             Map<String, Object> game,
             Map<Integer, String> characterNamesByCode,
-            Map<Integer, String> equipmentNamesByCode
+            Map<Integer, String> equipmentNamesByCode,
+            Map<String, String> koreanL10n
     ) {
         Integer characterNum = toInteger(game.get("characterNum"));
+        Integer tacticalSkillGroupCode = tacticalSkillGroupCode(game);
 
         return new GameParticipantSummary(
                 valueAsString(game.get("nickname")),
@@ -394,8 +494,69 @@ public class EternalReturnApiClient {
                 toInteger(game.get("rankPoint")),
                 toInteger(game.get("victory")),
                 toInteger(game.get("playTime")),
-                toEquipmentSummaries(asMap(game.get("equipment")), asMap(game.get("equipmentGrade")), equipmentNamesByCode)
+                toEquipmentSummaries(asMap(game.get("equipment")), asMap(game.get("equipmentGrade")), equipmentNamesByCode),
+                tacticalSkillGroupCode,
+                tacticalSkillNameFor(tacticalSkillGroupCode, koreanL10n),
+                toTraitSummaries(game, koreanL10n)
         );
+    }
+
+    private boolean hasTacticalSkillOrTraits(Map<String, Object> response) {
+        return userGamesFrom(response).stream()
+                .map(this::asMap)
+                .filter(game -> game != null)
+                .anyMatch(game -> tacticalSkillGroupCode(game) != null || !traitCodes(game).isEmpty());
+    }
+
+    private Integer tacticalSkillGroupCode(Map<String, Object> game) {
+        Integer tacticalSkillGroupCode = toInteger(game.get("tacticalSkillGroupCode"));
+        if (tacticalSkillGroupCode != null) {
+            return tacticalSkillGroupCode;
+        }
+
+        return toInteger(game.get("tacticalSkillGroup"));
+    }
+
+    private List<TraitSummary> toTraitSummaries(Map<String, Object> game, Map<String, String> koreanL10n) {
+        return traitCodes(game).stream()
+                .map(traitCode -> new TraitSummary(traitCode, traitNameFor(traitCode, koreanL10n)))
+                .toList();
+    }
+
+    private List<Integer> traitCodes(Map<String, Object> game) {
+        List<Integer> traitCodes = new ArrayList<>();
+        Integer firstCore = toInteger(game.get("traitFirstCore"));
+        if (firstCore != null) {
+            traitCodes.add(firstCore);
+        }
+        traitCodes.addAll(toIntegerList(game.get("traitFirstSub")));
+        traitCodes.addAll(toIntegerList(game.get("traitSecondSub")));
+
+        return traitCodes;
+    }
+
+    private List<Integer> toIntegerList(Object value) {
+        if (!(value instanceof List<?> values)) {
+            return List.of();
+        }
+
+        return values.stream()
+                .map(this::toInteger)
+                .filter(code -> code != null)
+                .toList();
+    }
+
+    private String tacticalSkillNameFor(Integer tacticalSkillGroupCode, Map<String, String> koreanL10n) {
+        if (tacticalSkillGroupCode == null) {
+            return null;
+        }
+
+        Integer skillGroupCode = TACTICAL_SKILL_GROUPS.getOrDefault(tacticalSkillGroupCode, tacticalSkillGroupCode);
+        return koreanL10n.get("Skill/Group/Name/" + skillGroupCode);
+    }
+
+    private String traitNameFor(Integer traitCode, Map<String, String> koreanL10n) {
+        return koreanL10n.get("Trait/Name/" + traitCode);
     }
 
     private Map<String, EquipmentSummary> toEquipmentSummaries(
@@ -473,6 +634,84 @@ public class EternalReturnApiClient {
             }
 
             return equipmentNamesByCodeCache;
+        }
+    }
+
+    private Map<String, String> getKoreanL10n() {
+        Map<String, String> cachedKoreanL10n = koreanL10nCache;
+        if (cachedKoreanL10n != null) {
+            return cachedKoreanL10n;
+        }
+
+        synchronized (this) {
+            if (koreanL10nCache == null) {
+                Map<String, String> loadedKoreanL10n = loadKoreanL10n();
+                if (!loadedKoreanL10n.isEmpty()) {
+                    koreanL10nCache = loadedKoreanL10n;
+                }
+                return loadedKoreanL10n;
+            }
+
+            return koreanL10nCache;
+        }
+    }
+
+    private Map<String, String> loadKoreanL10n() {
+        try {
+            Map<String, Object> response = getJson("/l10n/{language}", "Korean");
+            Map<String, Object> data = asMap(response.get("data"));
+            String l10nPath = l10nPathFrom(response, data);
+            if (!StringUtils.hasText(l10nPath)) {
+                log.warn("Korean ER language data response did not include a download path.");
+                return Map.of();
+            }
+
+            String l10n = getText(l10nPath);
+            Map<String, String> entries = new HashMap<>();
+            l10n.lines().forEach(line -> {
+                int delimiterIndex = line.indexOf('\u2503');
+                if (delimiterIndex < 0) {
+                    delimiterIndex = line.indexOf('\t');
+                }
+                if (delimiterIndex > 0) {
+                    entries.put(line.substring(0, delimiterIndex), line.substring(delimiterIndex + 1));
+                }
+            });
+            return Map.copyOf(entries);
+        } catch (EternalReturnApiException exception) {
+            log.warn("Failed to load Korean ER language data: status={}", exception.getStatus());
+            return Map.of();
+        }
+    }
+
+    private String l10nPathFrom(Map<String, Object> response, Map<String, Object> data) {
+        if (data != null) {
+            String l10nPath = valueAsString(data.get("l10Path"));
+            if (StringUtils.hasText(l10nPath)) {
+                return l10nPath;
+            }
+            l10nPath = valueAsString(data.get("l10nPath"));
+            if (StringUtils.hasText(l10nPath)) {
+                return l10nPath;
+            }
+        }
+
+        return valueAsString(response.get("l10nPath"));
+    }
+
+    private String getText(String url) {
+        assertApiKeyConfigured();
+
+        try {
+            String response = restClient.get()
+                    .uri(url)
+                    .retrieve()
+                    .body(String.class);
+            return response == null ? "" : response;
+        } catch (HttpStatusCodeException exception) {
+            throw toApiException(exception);
+        } catch (ResourceAccessException exception) {
+            throw timeoutException();
         }
     }
 

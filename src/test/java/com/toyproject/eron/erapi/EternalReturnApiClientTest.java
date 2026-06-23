@@ -125,6 +125,15 @@ class EternalReturnApiClientTest {
                           "matchingTeamMode": 3,
                           "characterNum": 68,
                           "gameRank": 3,
+                          "bestWeapon": 7,
+                          "bestWeaponLevel": 18,
+                          "tacticalSkillGroupCode": 130,
+                          "traitFirstCore": 7000401,
+                          "traitFirstSub": [7011001, 7010311],
+                          "traitSecondSub": [7110701, 7110601],
+                          "equipment": {
+                            "0": 114702
+                          },
                           "playerKill": 5,
                           "playerAssistant": 2,
                           "playerDeaths": 1,
@@ -145,6 +154,7 @@ class EternalReturnApiClientTest {
         });
         createCharacterDataContext();
         createEquipmentDataContexts();
+        createKoreanL10nContext();
 
         EternalReturnApiClient client = createClient("test-api-key");
 
@@ -173,13 +183,23 @@ class EternalReturnApiClientTest {
                     assertThat(game.mmrAfter()).isEqualTo(1620);
                     assertThat(game.startDtm()).isEqualTo("2026-05-30T23:15:29.029+0900");
                     assertThat(game.playTime()).isEqualTo(551);
+                    assertThat(game.bestWeapon()).isEqualTo(7);
+                    assertThat(game.bestWeaponName()).isEqualTo("활");
+                    assertThat(game.bestWeaponLevel()).isEqualTo(18);
+                    assertThat(game.tacticalSkillGroupCode()).isEqualTo(130);
+                    assertThat(game.tacticalSkill()).isEqualTo("전장의 일격");
+                    assertThat(game.traits())
+                            .extracting(trait -> trait.traitName())
+                            .containsExactly("흡혈마", "갈증", "철갑탄", "대담", "대담");
                 });
-        assertThat(capturedRequests).hasSize(2);
+        assertThat(capturedRequests).hasSize(4);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/user/games/uid/abc-123");
         assertThat(capturedRequests.get(0).query()).isNull();
         assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
-        assertThat(capturedRequests.get(1).path()).isEqualTo("/data/Character");
+        assertThat(capturedRequests.get(1).path()).isEqualTo("/l10n/Korean");
         assertThat(capturedRequests.get(1).apiKey()).isEqualTo("test-api-key");
+        assertThat(capturedRequests.get(2).path()).isEqualTo("/l10n-ko.txt");
+        assertThat(capturedRequests.get(3).path()).isEqualTo("/data/Character");
     }
 
     @Test
@@ -416,6 +436,10 @@ class EternalReturnApiClientTest {
                           "protectAbsorb": 3171,
                           "bestWeapon": 7,
                           "bestWeaponLevel": 18,
+                          "tacticalSkillGroupCode": 130,
+                          "traitFirstCore": 7000401,
+                          "traitFirstSub": [7011001, 7010311],
+                          "traitSecondSub": [7110701, 7110601],
                           "rankPoint": 0,
                           "victory": 1,
                           "startDtm": "2026-06-09T13:44:20.020+0900",
@@ -473,6 +497,7 @@ class EternalReturnApiClientTest {
         });
         createCharacterDataContext();
         createEquipmentDataContexts();
+        createKoreanL10nContext();
 
         EternalReturnApiClient client = createClient("test-api-key");
 
@@ -508,6 +533,11 @@ class EternalReturnApiClientTest {
                     assertThat(participant.protectAbsorb()).isEqualTo(3171);
                     assertThat(participant.bestWeapon()).isEqualTo(7);
                     assertThat(participant.bestWeaponLevel()).isEqualTo(18);
+                    assertThat(participant.tacticalSkillGroupCode()).isEqualTo(130);
+                    assertThat(participant.tacticalSkill()).isEqualTo("전장의 일격");
+                    assertThat(participant.traits())
+                            .extracting(trait -> trait.traitName())
+                            .containsExactly("흡혈마", "갈증", "철갑탄", "대담", "대담");
                     assertThat(participant.rankPoint()).isZero();
                     assertThat(participant.victory()).isEqualTo(1);
                     assertThat(participant.playTime()).isEqualTo(609);
@@ -526,16 +556,18 @@ class EternalReturnApiClientTest {
                     assertThat(participant.characterNum()).isEqualTo(68);
                     assertThat(participant.characterName()).isEqualTo("알론소");
                 });
-        assertThat(capturedRequests).hasSize(4);
+        assertThat(capturedRequests).hasSize(6);
         assertThat(capturedRequests.get(0).path()).isEqualTo("/games/98765");
         assertThat(capturedRequests.get(0).query()).isNull();
         assertThat(capturedRequests.get(0).apiKey()).isEqualTo("test-api-key");
-        assertThat(capturedRequests.get(1).path()).isEqualTo("/data/Character");
+        assertThat(capturedRequests.get(1).path()).isEqualTo("/l10n/Korean");
         assertThat(capturedRequests.get(1).apiKey()).isEqualTo("test-api-key");
-        assertThat(capturedRequests.get(2).path()).isEqualTo("/data/ItemWeapon");
+        assertThat(capturedRequests.get(2).path()).isEqualTo("/l10n-ko.txt");
         assertThat(capturedRequests.get(2).apiKey()).isEqualTo("test-api-key");
-        assertThat(capturedRequests.get(3).path()).isEqualTo("/data/ItemArmor");
+        assertThat(capturedRequests.get(3).path()).isEqualTo("/data/Character");
         assertThat(capturedRequests.get(3).apiKey()).isEqualTo("test-api-key");
+        assertThat(capturedRequests.get(4).path()).isEqualTo("/data/ItemWeapon");
+        assertThat(capturedRequests.get(5).path()).isEqualTo("/data/ItemArmor");
     }
 
     @Test
@@ -977,6 +1009,32 @@ class EternalReturnApiClientTest {
                         }
                       ]
                     }
+                    """);
+        });
+    }
+
+    private void createKoreanL10nContext() {
+        String l10nPath = "http://localhost:" + server.getAddress().getPort() + "/l10n-ko.txt";
+        server.createContext("/l10n/Korean", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "data": {
+                        "l10nPath": "%s"
+                      }
+                    }
+                    """.formatted(l10nPath));
+        });
+        server.createContext("/l10n-ko.txt", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    Skill/Group/Name/4112000\u2503전장의 일격
+                    Trait/Name/7000401\t흡혈마
+                    Trait/Name/7011001\t갈증
+                    Trait/Name/7010311\t철갑탄
+                    Trait/Name/7110701\t대담
+                    Trait/Name/7110601\t대담
                     """);
         });
     }
