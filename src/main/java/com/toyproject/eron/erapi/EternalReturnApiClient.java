@@ -44,6 +44,8 @@ public class EternalReturnApiClient {
             };
     private static final Pattern LOCAL_NAME_ENTRY_PATTERN =
             Pattern.compile("\"code\"\\s*:\\s*(\\d+).*?\"name\"\\s*:\\s*\"([^\"]+)\"");
+    // 공식 l10n 텍스트에서 실험체명 항목의 키 접두사: "Character/Name/{code}"
+    private static final String L10N_CHARACTER_NAME_PREFIX = "Character/Name/";
     private static final Map<Integer, Integer> TACTICAL_SKILL_GROUPS = Map.ofEntries(
             Map.entry(30, 4_000_000),
             Map.entry(40, 4_001_000),
@@ -538,7 +540,12 @@ public class EternalReturnApiClient {
 
         synchronized (this) {
             if (characterNamesByCodeCache == null) {
-                characterNamesByCodeCache = loadCharacterNamesByCode();
+                Map<Integer, String> loaded = loadCharacterNamesByCode();
+                if (loaded.isEmpty()) {
+                    // 일시적 l10n/API 장애를 영구 캐싱하지 않는다. 다음 호출에서 재시도해 자가복구.
+                    return loaded;
+                }
+                characterNamesByCodeCache = loaded;
             }
 
             return characterNamesByCodeCache;
@@ -546,7 +553,44 @@ public class EternalReturnApiClient {
     }
 
     private Map<Integer, String> loadCharacterNamesByCode() {
+        // 실험체명은 공식 l10n(한글)의 "Character/Name/{code}" 항목에서 가져온다.
+        // (트레잇/전술스킬용으로 이미 받아 캐싱하는 l10n을 재사용하므로 추가 다운로드가 없다.)
+        // 신규 실험체도 l10n에 들어오는 즉시 자동 반영된다.
+        Map<Integer, String> fromL10n = characterNamesFromL10n(getKoreanL10n());
+        if (!fromL10n.isEmpty()) {
+            return Map.copyOf(fromL10n);
+        }
+
+        // l10n을 쓸 수 없으면 /data/Character(영문)로 폴백한다.
+        log.warn("Falling back to /data/Character because Korean l10n character names were unavailable.");
         return Map.copyOf(loadNamesByCode("Character"));
+    }
+
+    private Map<Integer, String> characterNamesFromL10n(Map<String, String> koreanL10n) {
+        Map<Integer, String> namesByCode = new HashMap<>();
+        koreanL10n.forEach((key, value) -> {
+            if (!key.startsWith(L10N_CHARACTER_NAME_PREFIX)) {
+                return;
+            }
+            Integer code = parsePositiveInt(key.substring(L10N_CHARACTER_NAME_PREFIX.length()));
+            if (code != null && StringUtils.hasText(value)) {
+                namesByCode.put(code, value.trim());
+            }
+        });
+
+        return namesByCode;
+    }
+
+    private Integer parsePositiveInt(String value) {
+        if (value.isEmpty() || !value.chars().allMatch(Character::isDigit)) {
+            return null;
+        }
+
+        try {
+            return Integer.parseInt(value);
+        } catch (NumberFormatException exception) {
+            return null;
+        }
     }
 
     private Map<Integer, String> getEquipmentNamesByCode() {
