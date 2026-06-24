@@ -26,6 +26,7 @@ import org.springframework.web.client.RestClient;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.GameParticipantSummary;
 import com.toyproject.eron.erapi.dto.EquipmentSummary;
+import com.toyproject.eron.erapi.dto.SkinMetadata;
 import com.toyproject.eron.erapi.dto.TraitSummary;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
@@ -114,6 +115,7 @@ public class EternalReturnApiClient {
     private volatile Map<Integer, String> characterNamesByCodeCache;
     private volatile Map<Integer, String> equipmentNamesByCodeCache;
     private volatile Map<String, String> koreanL10nCache;
+    private volatile List<SkinMetadata> skinMetadataCache;
 
     public EternalReturnApiClient(RestClient eternalReturnRestClient, EternalReturnApiProperties properties) {
         this.restClient = eternalReturnRestClient;
@@ -226,6 +228,21 @@ public class EternalReturnApiClient {
         return getJson("/data/{metaType}", metaType);
     }
 
+    public List<SkinMetadata> getSkinMetadata() {
+        List<SkinMetadata> cachedSkinMetadata = skinMetadataCache;
+        if (cachedSkinMetadata != null) {
+            return cachedSkinMetadata;
+        }
+
+        synchronized (this) {
+            if (skinMetadataCache == null) {
+                skinMetadataCache = loadSkinMetadata();
+            }
+
+            return skinMetadataCache;
+        }
+    }
+
     private Map<String, Object> getJson(String path, Object... uriVariables) {
         assertApiKeyConfigured();
 
@@ -330,7 +347,8 @@ public class EternalReturnApiClient {
                 toInteger(game.get("bestWeaponLevel")),
                 tacticalSkillGroupCode,
                 tacticalSkillNameFor(tacticalSkillGroupCode, koreanL10n),
-                toTraitSummaries(game, koreanL10n)
+                toTraitSummaries(game, koreanL10n),
+                toInteger(game.get("skinCode"))
         );
     }
 
@@ -564,6 +582,47 @@ public class EternalReturnApiClient {
         }
     }
 
+    private List<SkinMetadata> loadSkinMetadata() {
+        Map<String, Object> response = getDataTable("CharacterSkin");
+        if (!(response.get("data") instanceof List<?> skins)) {
+            return List.of();
+        }
+
+        Map<Integer, String> characterNamesByCode = getCharacterNamesByCode();
+        return skins.stream()
+                .map(this::asMap)
+                .filter(skin -> skin != null)
+                .map(skin -> toSkinMetadata(skin, characterNamesByCode))
+                .filter(skin -> skin.skinCode() != null)
+                .sorted(java.util.Comparator.comparing(SkinMetadata::skinCode))
+                .toList();
+    }
+
+    private SkinMetadata toSkinMetadata(Map<String, Object> skin, Map<Integer, String> characterNamesByCode) {
+        Integer skinCode = firstInteger(skin.get("skinCode"), skin.get("code"));
+        Integer characterNum = firstInteger(
+                skin.get("characterNum"),
+                skin.get("characterCode"),
+                skin.get("characterId")
+        );
+        Integer skinVariant = firstInteger(
+                skin.get("skinVariant"),
+                skin.get("skinIndex"),
+                skin.get("variant")
+        );
+        if (skinVariant == null && skinCode != null) {
+            skinVariant = Math.max(0, skinCode % 10_000 - 1);
+        }
+
+        return new SkinMetadata(
+                skinCode,
+                characterNum,
+                characterNameFor(characterNum, characterNamesByCode),
+                firstNonBlankString(skin.get("skinName"), skin.get("name")),
+                skinVariant
+        );
+    }
+
     private Map<String, String> getKoreanL10n() {
         Map<String, String> cachedKoreanL10n = koreanL10nCache;
         if (cachedKoreanL10n != null) {
@@ -710,6 +769,17 @@ public class EternalReturnApiClient {
         return null;
     }
 
+    private Integer firstInteger(Object... values) {
+        for (Object value : values) {
+            Integer integer = toInteger(value);
+            if (integer != null) {
+                return integer;
+            }
+        }
+
+        return null;
+    }
+
     private Long toLong(Object value) {
         if (value instanceof Number number) {
             return number.longValue();
@@ -724,6 +794,17 @@ public class EternalReturnApiClient {
         }
 
         return String.valueOf(value);
+    }
+
+    private String firstNonBlankString(Object... values) {
+        for (Object value : values) {
+            String stringValue = valueAsString(value);
+            if (StringUtils.hasText(stringValue)) {
+                return stringValue;
+            }
+        }
+
+        return null;
     }
 
     private void assertApiKeyConfigured() {

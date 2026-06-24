@@ -29,7 +29,8 @@ public record UserGameSummary(
         Integer bestWeaponLevel,
         Integer tacticalSkillGroupCode,
         String tacticalSkill,
-        List<TraitSummary> traits
+        List<TraitSummary> traits,
+        Integer skinCode
 ) {
 
     public UserGameSummary(
@@ -78,7 +79,8 @@ public record UserGameSummary(
                 null,
                 null,
                 null,
-                List.of()
+                List.of(),
+                null
         );
     }
 

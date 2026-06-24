@@ -23,6 +23,7 @@ import com.sun.net.httpserver.HttpExchange;
 import com.sun.net.httpserver.HttpServer;
 import com.toyproject.eron.erapi.dto.EquipmentSummary;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
+import com.toyproject.eron.erapi.dto.SkinMetadata;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
@@ -124,6 +125,7 @@ class EternalReturnApiClientTest {
                           "matchingMode": 3,
                           "matchingTeamMode": 3,
                           "characterNum": 68,
+                          "skinCode": 680001,
                           "gameRank": 3,
                           "bestWeapon": 7,
                           "bestWeaponLevel": 18,
@@ -171,6 +173,7 @@ class EternalReturnApiClientTest {
                     assertThat(game.matchingTeamMode()).isEqualTo(3);
                     assertThat(game.characterNum()).isEqualTo(68);
                     assertThat(game.characterName()).isEqualTo("알론소");
+                    assertThat(game.skinCode()).isEqualTo(680001);
                     assertThat(game.gameRank()).isEqualTo(3);
                     assertThat(game.playerKill()).isEqualTo(5);
                     assertThat(game.playerAssistant()).isEqualTo(2);
@@ -568,6 +571,45 @@ class EternalReturnApiClientTest {
         assertThat(capturedRequests.get(3).apiKey()).isEqualTo("test-api-key");
         assertThat(capturedRequests.get(4).path()).isEqualTo("/data/ItemWeapon");
         assertThat(capturedRequests.get(5).path()).isEqualTo("/data/ItemArmor");
+    }
+
+    @Test
+    void getSkinMetadataMapsAndCachesCharacterSkins() {
+        server.createContext("/data/CharacterSkin", exchange -> {
+            capturedRequests.add(CapturedRequest.from(exchange));
+            writeJson(exchange, 200, """
+                    {
+                      "code": 200,
+                      "data": [
+                        {
+                          "code": 170002,
+                          "characterCode": 17,
+                          "name": "Hitman",
+                          "skinIndex": 1
+                        },
+                        {
+                          "skinCode": 220001,
+                          "characterNum": 22,
+                          "skinName": "Default"
+                        }
+                      ]
+                    }
+                    """);
+        });
+        createCharacterDataContext();
+
+        EternalReturnApiClient client = createClient("test-api-key");
+
+        List<SkinMetadata> firstResponse = client.getSkinMetadata();
+        List<SkinMetadata> secondResponse = client.getSkinMetadata();
+
+        assertThat(firstResponse).containsExactly(
+                new SkinMetadata(170002, 17, "아드리아나", "Hitman", 1),
+                new SkinMetadata(220001, 22, "루크", "Default", 0)
+        );
+        assertThat(secondResponse).isSameAs(firstResponse);
+        assertThat(capturedRequests).extracting(CapturedRequest::path)
+                .containsExactly("/data/CharacterSkin", "/data/Character");
     }
 
     @Test

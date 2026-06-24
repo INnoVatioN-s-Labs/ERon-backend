@@ -18,6 +18,7 @@ import com.github.benmanes.caffeine.cache.Cache;
 import com.github.benmanes.caffeine.cache.Caffeine;
 import com.toyproject.eron.erapi.dto.DataTableResponse;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
+import com.toyproject.eron.erapi.dto.SkinMetadataResponse;
 import com.toyproject.eron.erapi.dto.TopRankingsResponse;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
@@ -190,6 +191,10 @@ public class EternalReturnService {
 
     public DataTableResponse getDataTable(String metaType) {
         return new DataTableResponse(metaType, eternalReturnApiClient.getDataTable(metaType));
+    }
+
+    public SkinMetadataResponse getSkinMetadata() {
+        return new SkinMetadataResponse(eternalReturnApiClient.getSkinMetadata());
     }
 
     @SuppressWarnings("unchecked")
