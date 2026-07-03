@@ -398,7 +398,105 @@ class EternalReturnServiceTest {
                 .containsEntry("top3Count", 1)
                 .containsEntry("top3Rate", 0.5)
                 .containsEntry("averageRank", 2.5)
-                .containsEntry("averageKills", 4.0);
+                .containsEntry("averageKills", 4.0)
+                .containsEntry("sampleConfidence", 0.4)
+                .containsEntry("metaScore", 0.38);
+    }
+
+    @Test
+    void getCurrentCharacterMetaUsesConfiguredSeasonModeAndTier() {
+        EternalReturnService configuredService = new EternalReturnService(
+                eternalReturnApiClient,
+                Duration.ofSeconds(30),
+                clock,
+                10_000,
+                40,
+                2,
+                "데미갓",
+                1000
+        );
+        when(eternalReturnApiClient.getTopRankings(40, 2))
+                .thenReturn(Map.of("code", 200, "topRanks", List.of()));
+
+        Map<String, Object> response = configuredService.getCurrentCharacterMeta();
+
+        assertThat(response)
+                .containsEntry("seasonId", 40)
+                .containsEntry("matchingTeamMode", 2)
+                .containsEntry("tier", "데미갓")
+                .containsEntry("rankingSampleLimit", 1000)
+                .containsEntry("sampleGameCount", 0);
+        verify(eternalReturnApiClient).getTopRankings(40, 2);
+    }
+
+    @Test
+    void getCurrentCharacterMetaDoesNotFilterWhenRankingTierIsMissing() {
+        when(eternalReturnApiClient.getTopRankings(39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "topRanks", List.of(Map.of(
+                                "rank", 1,
+                                "nickname", "topUser",
+                                "rankScore", 8320
+                        ))
+                ));
+        when(eternalReturnApiClient.getUserByNickname("topUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "topUser", Map.of()));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(
+                        List.of(userGame(98765, 1, "Jackie", 1, 6)),
+                        null
+                ));
+
+        Map<String, Object> response = eternalReturnService.getCurrentCharacterMeta();
+
+        assertThat(response)
+                .containsEntry("seasonId", 39)
+                .containsEntry("matchingTeamMode", 3)
+                .containsEntry("tier", "")
+                .containsEntry("sampleGameCount", 1);
+        assertThat(response.get("characters"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.LIST)
+                .first()
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("characterName", "Jackie")
+                .containsEntry("metaScore", 0.68);
+    }
+
+    @Test
+    void getCurrentCharacterMetaCachesUntilNineAmInKorea() {
+        MutableClock morningClock = new MutableClock(Instant.parse("2026-06-16T23:59:00Z"));
+        EternalReturnService service = new EternalReturnService(
+                eternalReturnApiClient,
+                Duration.ofSeconds(30),
+                morningClock
+        );
+        when(eternalReturnApiClient.getTopRankings(39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "topRanks", List.of(Map.of(
+                                "rank", 1,
+                                "nickname", "topUser",
+                                "rankScore", 8320
+                        ))
+                ));
+        when(eternalReturnApiClient.getUserByNickname("topUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "topUser", Map.of()));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(
+                        List.of(userGame(98765, 1, "Jackie", 1, 6)),
+                        null
+                ));
+
+        Map<String, Object> firstResponse = service.getCurrentCharacterMeta();
+        morningClock.advance(Duration.ofSeconds(30));
+        Map<String, Object> cachedResponse = service.getCurrentCharacterMeta();
+        morningClock.advance(Duration.ofSeconds(31));
+        Map<String, Object> refreshedResponse = service.getCurrentCharacterMeta();
+
+        assertThat(cachedResponse).isSameAs(firstResponse);
+        assertThat(refreshedResponse).isNotSameAs(firstResponse);
+        verify(eternalReturnApiClient, times(2)).getTopRankings(39, 3);
     }
 
     private UserGamesResponse userGamesResponse(long gameId) {

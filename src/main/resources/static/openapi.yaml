@@ -155,6 +155,12 @@ paths:
       responses:
         '200':
           description: Character meta response.
+  /api/er/meta/current/characters:
+    get:
+      summary: Return current character meta using backend configured season, team mode, and tier.
+      responses:
+        '200':
+          description: Current character meta response.
   /api/er/meta/skins:
     get:
       summary: Return the full mapped skin metadata list.

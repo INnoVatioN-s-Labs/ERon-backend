@@ -98,6 +98,11 @@ public class EternalReturnController {
         return eternalReturnService.getCharacterMeta(seasonId, matchingTeamMode, tier);
     }
 
+    @GetMapping("/meta/current/characters")
+    public java.util.Map<String, Object> getCurrentCharacterMeta() {
+        return eternalReturnService.getCurrentCharacterMeta();
+    }
+
     @GetMapping("/meta/skins")
     public SkinMetadataResponse getSkinMetadata() {
         return eternalReturnService.getSkinMetadata();

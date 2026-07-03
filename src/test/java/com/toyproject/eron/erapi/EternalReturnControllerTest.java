@@ -427,6 +427,35 @@ class EternalReturnControllerTest {
     }
 
     @Test
+    void getCurrentCharacterMetaReturnsConfiguredCharacterStats() throws Exception {
+        when(eternalReturnService.getCurrentCharacterMeta())
+                .thenReturn(Map.of(
+                        "seasonId", 39,
+                        "matchingTeamMode", 3,
+                        "tier", "이터니티",
+                        "sampleGameCount", 3,
+                        "characters", List.of(Map.of(
+                                "characterNum", 1,
+                                "characterName", "Jackie",
+                                "gameCount", 2,
+                                "pickRate", 0.67,
+                                "top3Rate", 0.5,
+                                "averageRank", 2.5,
+                                "averageKills", 4.0
+                        ))
+                ));
+
+        mockMvc.perform(get("/api/er/meta/current/characters"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.seasonId").value(39))
+                .andExpect(jsonPath("$.matchingTeamMode").value(3))
+                .andExpect(jsonPath("$.tier").value("이터니티"))
+                .andExpect(jsonPath("$.sampleGameCount").value(3))
+                .andExpect(jsonPath("$.characters[0].characterNum").value(1))
+                .andExpect(jsonPath("$.characters[0].characterName").value("Jackie"));
+    }
+
+    @Test
     void getSkinMetadataReturnsMappedSkinList() throws Exception {
         when(eternalReturnService.getSkinMetadata())
                 .thenReturn(new SkinMetadataResponse(List.of(
