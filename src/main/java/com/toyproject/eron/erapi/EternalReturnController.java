@@ -12,6 +12,7 @@ import org.springframework.validation.annotation.Validated;
 
 import com.toyproject.eron.erapi.dto.DataTableResponse;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
+import com.toyproject.eron.erapi.dto.SkinMetadataResponse;
 import com.toyproject.eron.erapi.dto.TopRankingsResponse;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
@@ -95,6 +96,11 @@ public class EternalReturnController {
             @RequestParam(defaultValue = "이터니티") String tier
     ) {
         return eternalReturnService.getCharacterMeta(seasonId, matchingTeamMode, tier);
+    }
+
+    @GetMapping("/meta/skins")
+    public SkinMetadataResponse getSkinMetadata() {
+        return eternalReturnService.getSkinMetadata();
     }
 
     @GetMapping("/games/{gameId}")

@@ -18,6 +18,8 @@ import org.springframework.test.web.servlet.setup.MockMvcBuilders;
 import com.toyproject.eron.erapi.dto.EquipmentSummary;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.GameParticipantSummary;
+import com.toyproject.eron.erapi.dto.SkinMetadata;
+import com.toyproject.eron.erapi.dto.SkinMetadataResponse;
 import com.toyproject.eron.erapi.dto.TraitSummary;
 import com.toyproject.eron.erapi.dto.TopRankingsResponse;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
@@ -422,6 +424,22 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.characters[0].characterName").value("Jackie"))
                 .andExpect(jsonPath("$.characters[0].pickRate").value(0.67))
                 .andExpect(jsonPath("$.characters[0].averageRank").value(2.5));
+    }
+
+    @Test
+    void getSkinMetadataReturnsMappedSkinList() throws Exception {
+        when(eternalReturnService.getSkinMetadata())
+                .thenReturn(new SkinMetadataResponse(List.of(
+                        new SkinMetadata(170002, 17, "아드리아나", "Hitman", 1)
+                )));
+
+        mockMvc.perform(get("/api/er/meta/skins"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.skins[0].skinCode").value(170002))
+                .andExpect(jsonPath("$.skins[0].characterNum").value(17))
+                .andExpect(jsonPath("$.skins[0].characterName").value("아드리아나"))
+                .andExpect(jsonPath("$.skins[0].skinName").value("Hitman"))
+                .andExpect(jsonPath("$.skins[0].skinVariant").value(1));
     }
 
     @Test
