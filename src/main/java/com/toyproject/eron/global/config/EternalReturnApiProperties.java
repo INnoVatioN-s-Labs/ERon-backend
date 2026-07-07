@@ -18,6 +18,7 @@ public class EternalReturnApiProperties {
     private int currentMatchingTeamMode = 3;
     private String currentMetaTier = "";
     private int currentMetaRankingSampleLimit = 1000;
+    private int currentMetaMinimumCharacterGames = 10;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -105,5 +106,13 @@ public class EternalReturnApiProperties {
 
     public void setCurrentMetaRankingSampleLimit(int currentMetaRankingSampleLimit) {
         this.currentMetaRankingSampleLimit = currentMetaRankingSampleLimit;
+    }
+
+    public int getCurrentMetaMinimumCharacterGames() {
+        return currentMetaMinimumCharacterGames;
+    }
+
+    public void setCurrentMetaMinimumCharacterGames(int currentMetaMinimumCharacterGames) {
+        this.currentMetaMinimumCharacterGames = currentMetaMinimumCharacterGames;
     }
 }

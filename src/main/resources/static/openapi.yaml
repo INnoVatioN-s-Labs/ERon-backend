@@ -157,10 +157,16 @@ paths:
           description: Character meta response.
   /api/er/meta/current/characters:
     get:
-      summary: Return current character meta using backend configured season, team mode, and tier.
+      summary: Return stored today character recommendations.
       responses:
         '200':
           description: Current character meta response.
+  /api/er/meta/current/characters/refresh:
+    post:
+      summary: Collect ranked match samples for today character recommendations.
+      responses:
+        '200':
+          description: Collection result.
   /api/er/meta/skins:
     get:
       summary: Return the full mapped skin metadata list.

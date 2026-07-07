@@ -2,6 +2,7 @@ package com.toyproject.eron.erapi;
 
 import static org.mockito.Mockito.when;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.get;
+import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.post;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
@@ -34,13 +35,15 @@ import com.toyproject.eron.global.error.GlobalExceptionHandler;
 class EternalReturnControllerTest {
 
     private EternalReturnService eternalReturnService;
+    private CharacterMetaStatService characterMetaStatService;
     private MockMvc mockMvc;
 
     @BeforeEach
     void setUp() {
         eternalReturnService = Mockito.mock(EternalReturnService.class);
+        characterMetaStatService = Mockito.mock(CharacterMetaStatService.class);
         mockMvc = MockMvcBuilders
-                .standaloneSetup(new EternalReturnController(eternalReturnService))
+                .standaloneSetup(new EternalReturnController(eternalReturnService, characterMetaStatService))
                 .setControllerAdvice(new GlobalExceptionHandler())
                 .build();
     }
@@ -428,12 +431,13 @@ class EternalReturnControllerTest {
 
     @Test
     void getCurrentCharacterMetaReturnsConfiguredCharacterStats() throws Exception {
-        when(eternalReturnService.getCurrentCharacterMeta())
+        when(characterMetaStatService.getTodayCharacterMeta())
                 .thenReturn(Map.of(
                         "seasonId", 39,
                         "matchingTeamMode", 3,
-                        "tier", "이터니티",
+                        "rankingSampleLimit", 1000,
                         "sampleGameCount", 3,
+                        "source", "stored",
                         "characters", List.of(Map.of(
                                 "characterNum", 1,
                                 "characterName", "Jackie",
@@ -449,10 +453,30 @@ class EternalReturnControllerTest {
                 .andExpect(status().isOk())
                 .andExpect(jsonPath("$.seasonId").value(39))
                 .andExpect(jsonPath("$.matchingTeamMode").value(3))
-                .andExpect(jsonPath("$.tier").value("이터니티"))
+                .andExpect(jsonPath("$.rankingSampleLimit").value(1000))
+                .andExpect(jsonPath("$.source").value("stored"))
                 .andExpect(jsonPath("$.sampleGameCount").value(3))
                 .andExpect(jsonPath("$.characters[0].characterNum").value(1))
                 .andExpect(jsonPath("$.characters[0].characterName").value("Jackie"));
+    }
+
+    @Test
+    void refreshCurrentCharacterMetaCollectsSamples() throws Exception {
+        when(characterMetaStatService.refreshTodayCharacterMetaSamples())
+                .thenReturn(Map.of(
+                        "seasonId", 39,
+                        "matchingTeamMode", 3,
+                        "rankingSampleLimit", 1000,
+                        "visitedRankerCount", 2,
+                        "savedSampleCount", 15,
+                        "sampleGameCount", 15
+                ));
+
+        mockMvc.perform(post("/api/er/meta/current/characters/refresh"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.visitedRankerCount").value(2))
+                .andExpect(jsonPath("$.savedSampleCount").value(15))
+                .andExpect(jsonPath("$.sampleGameCount").value(15));
     }
 
     @Test
