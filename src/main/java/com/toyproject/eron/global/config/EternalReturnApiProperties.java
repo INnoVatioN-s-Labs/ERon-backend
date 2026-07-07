@@ -18,7 +18,9 @@ public class EternalReturnApiProperties {
     private int currentMatchingTeamMode = 3;
     private String currentMetaTier = "";
     private int currentMetaRankingSampleLimit = 1000;
+    private int currentMetaRankingBatchSize = 30;
     private int currentMetaMinimumCharacterGames = 10;
+    private int currentMetaSampleRetentionDays = 7;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -108,11 +110,27 @@ public class EternalReturnApiProperties {
         this.currentMetaRankingSampleLimit = currentMetaRankingSampleLimit;
     }
 
+    public int getCurrentMetaRankingBatchSize() {
+        return currentMetaRankingBatchSize;
+    }
+
+    public void setCurrentMetaRankingBatchSize(int currentMetaRankingBatchSize) {
+        this.currentMetaRankingBatchSize = currentMetaRankingBatchSize;
+    }
+
     public int getCurrentMetaMinimumCharacterGames() {
         return currentMetaMinimumCharacterGames;
     }
 
     public void setCurrentMetaMinimumCharacterGames(int currentMetaMinimumCharacterGames) {
         this.currentMetaMinimumCharacterGames = currentMetaMinimumCharacterGames;
+    }
+
+    public int getCurrentMetaSampleRetentionDays() {
+        return currentMetaSampleRetentionDays;
+    }
+
+    public void setCurrentMetaSampleRetentionDays(int currentMetaSampleRetentionDays) {
+        this.currentMetaSampleRetentionDays = currentMetaSampleRetentionDays;
     }
 }
