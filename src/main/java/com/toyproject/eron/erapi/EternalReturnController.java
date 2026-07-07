@@ -5,6 +5,7 @@ import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
+import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
@@ -26,9 +27,14 @@ import com.toyproject.eron.erapi.dto.UserStatsResponse;
 public class EternalReturnController {
 
     private final EternalReturnService eternalReturnService;
+    private final CharacterMetaStatService characterMetaStatService;
 
-    public EternalReturnController(EternalReturnService eternalReturnService) {
+    public EternalReturnController(
+            EternalReturnService eternalReturnService,
+            CharacterMetaStatService characterMetaStatService
+    ) {
         this.eternalReturnService = eternalReturnService;
+        this.characterMetaStatService = characterMetaStatService;
     }
 
     @GetMapping("/users/search")
@@ -96,6 +102,16 @@ public class EternalReturnController {
             @RequestParam(defaultValue = "이터니티") String tier
     ) {
         return eternalReturnService.getCharacterMeta(seasonId, matchingTeamMode, tier);
+    }
+
+    @GetMapping("/meta/current/characters")
+    public java.util.Map<String, Object> getCurrentCharacterMeta() {
+        return characterMetaStatService.getTodayCharacterMeta();
+    }
+
+    @PostMapping("/meta/current/characters/refresh")
+    public java.util.Map<String, Object> refreshCurrentCharacterMeta() {
+        return characterMetaStatService.refreshTodayCharacterMetaSamples();
     }
 
     @GetMapping("/meta/skins")

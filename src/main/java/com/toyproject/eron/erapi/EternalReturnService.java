@@ -3,6 +3,8 @@ package com.toyproject.eron.erapi;
 import java.time.Clock;
 import java.time.Duration;
 import java.time.Instant;
+import java.time.ZoneId;
+import java.time.ZonedDateTime;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -35,14 +37,26 @@ public class EternalReturnService {
     private static final Logger log = LoggerFactory.getLogger(EternalReturnService.class);
     private static final int RANKING_STATS_ENRICH_LIMIT = 10;
     private static final int USER_GAMES_DETAIL_LIMIT_MAX = 5;
+    private static final int DEFAULT_CURRENT_SEASON_ID = 39;
+    private static final int DEFAULT_CURRENT_MATCHING_TEAM_MODE = 3;
+    private static final String DEFAULT_CURRENT_META_TIER = "";
+    private static final int DEFAULT_CURRENT_META_RANKING_SAMPLE_LIMIT = 1000;
+    private static final String TODAY_CHARACTER_CACHE_KEY = "today";
+    private static final ZoneId TODAY_CHARACTER_REFRESH_ZONE = ZoneId.of("Asia/Seoul");
+    private static final int TODAY_CHARACTER_REFRESH_HOUR = 9;
 
     private final EternalReturnApiClient eternalReturnApiClient;
     private final Duration userGamesCacheTtl;
     private final Clock clock;
+    private final int currentSeasonId;
+    private final int currentMatchingTeamMode;
+    private final String currentMetaTier;
+    private final int currentMetaRankingSampleLimit;
     private final Cache<String, CacheEntry<UserGamesResponse>> userGamesCache;
     private final Cache<Long, CacheEntry<GameDetailResponse>> gameDetailCache;
     private final Cache<String, CacheEntry<Map<String, Object>>> topRankingsCache;
     private final Cache<String, CacheEntry<UserSearchResponse>> userSearchCache;
+    private final Cache<String, CacheEntry<Map<String, Object>>> todayCharacterCache;
 
     @Autowired
     public EternalReturnService(EternalReturnApiClient eternalReturnApiClient, EternalReturnApiProperties properties) {
@@ -50,28 +64,50 @@ public class EternalReturnService {
                 eternalReturnApiClient,
                 properties.getUserGamesCacheTtl(),
                 Clock.systemUTC(),
-                properties.getCacheMaximumSize()
+                properties.getCacheMaximumSize(),
+                properties.getCurrentSeasonId(),
+                properties.getCurrentMatchingTeamMode(),
+                properties.getCurrentMetaTier(),
+                properties.getCurrentMetaRankingSampleLimit()
         );
     }
 
     EternalReturnService(EternalReturnApiClient eternalReturnApiClient, Duration userGamesCacheTtl, Clock clock) {
-        this(eternalReturnApiClient, userGamesCacheTtl, clock, 10_000);
+        this(
+                eternalReturnApiClient,
+                userGamesCacheTtl,
+                clock,
+                10_000,
+                DEFAULT_CURRENT_SEASON_ID,
+                DEFAULT_CURRENT_MATCHING_TEAM_MODE,
+                DEFAULT_CURRENT_META_TIER,
+                DEFAULT_CURRENT_META_RANKING_SAMPLE_LIMIT
+        );
     }
 
     EternalReturnService(
             EternalReturnApiClient eternalReturnApiClient,
             Duration userGamesCacheTtl,
             Clock clock,
-            long cacheMaximumSize
+            long cacheMaximumSize,
+            int currentSeasonId,
+            int currentMatchingTeamMode,
+            String currentMetaTier,
+            int currentMetaRankingSampleLimit
     ) {
         this.eternalReturnApiClient = eternalReturnApiClient;
         this.userGamesCacheTtl = userGamesCacheTtl;
         this.clock = clock;
+        this.currentSeasonId = currentSeasonId;
+        this.currentMatchingTeamMode = currentMatchingTeamMode;
+        this.currentMetaTier = currentMetaTier;
+        this.currentMetaRankingSampleLimit = currentMetaRankingSampleLimit;
         long maximumSize = Math.max(1, cacheMaximumSize);
         this.userGamesCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
         this.gameDetailCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
         this.topRankingsCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
         this.userSearchCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
+        this.todayCharacterCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
     }
 
     public UserSearchResponse getUserByNickname(String nickname) {
@@ -163,23 +199,55 @@ public class EternalReturnService {
         );
     }
 
+    public Map<String, Object> getCurrentCharacterMeta() {
+        Instant now = clock.instant();
+        CacheEntry<Map<String, Object>> cached = todayCharacterCache.getIfPresent(TODAY_CHARACTER_CACHE_KEY);
+        if (isAlive(cached, now)) {
+            return cached.value();
+        }
+        todayCharacterCache.invalidate(TODAY_CHARACTER_CACHE_KEY);
+
+        Map<String, Object> response = getCharacterMeta(
+                currentSeasonId,
+                currentMatchingTeamMode,
+                currentMetaTier,
+                currentMetaRankingSampleLimit
+        );
+        todayCharacterCache.put(
+                TODAY_CHARACTER_CACHE_KEY,
+                new CacheEntry<>(response, nextTodayCharacterRefreshAt(now))
+        );
+        return response;
+    }
+
     public Map<String, Object> getCharacterMeta(int seasonId, int matchingTeamMode, String tier) {
+        return getCharacterMeta(seasonId, matchingTeamMode, tier, RANKING_STATS_ENRICH_LIMIT);
+    }
+
+    private Map<String, Object> getCharacterMeta(
+            int seasonId,
+            int matchingTeamMode,
+            String tier,
+            int rankingSampleLimit
+    ) {
         Map<String, Object> response = getCachedTopRankings(seasonId, matchingTeamMode);
         if (!(response.get("topRanks") instanceof List<?> topRanks)) {
             return Map.of(
                     "seasonId", seasonId,
                     "matchingTeamMode", matchingTeamMode,
                     "tier", tier,
+                    "rankingSampleLimit", rankingSampleLimit,
                     "sampleGameCount", 0,
                     "characters", List.of()
             );
         }
 
-        List<UserGameSummary> games = collectTopRankingGames(topRanks, tier);
+        List<UserGameSummary> games = collectTopRankingGames(topRanks, tier, rankingSampleLimit);
         return Map.of(
                 "seasonId", seasonId,
                 "matchingTeamMode", matchingTeamMode,
                 "tier", tier,
+                "rankingSampleLimit", rankingSampleLimit,
                 "sampleGameCount", games.size(),
                 "characters", toCharacterMeta(games)
         );
@@ -281,10 +349,11 @@ public class EternalReturnService {
         return rankings;
     }
 
-    private List<UserGameSummary> collectTopRankingGames(List<?> topRanks, String tier) {
+    private List<UserGameSummary> collectTopRankingGames(List<?> topRanks, String tier, int rankingSampleLimit) {
         java.util.ArrayList<UserGameSummary> games = new java.util.ArrayList<>();
+        int clampedLimit = Math.max(1, rankingSampleLimit);
 
-        for (int index = 0; index < topRanks.size() && index < RANKING_STATS_ENRICH_LIMIT; index++) {
+        for (int index = 0; index < topRanks.size() && index < clampedLimit; index++) {
             try {
                 Map<String, Object> ranking = toRankingMap(topRanks.get(index));
                 putTierFallback(ranking);
@@ -294,7 +363,7 @@ public class EternalReturnService {
 
                 String userId = rankingUserId(ranking);
                 if (userId != null) {
-                    games.addAll(getUserGames(userId).games());
+                    games.addAll(rankedOnly(getUserGames(userId)).games());
                 }
             } catch (EternalReturnApiException exception) {
                 if (exception.getStatus() == HttpStatus.TOO_MANY_REQUESTS) {
@@ -346,7 +415,8 @@ public class EternalReturnService {
         return accumulators.values()
                 .stream()
                 .sorted(Comparator
-                        .comparing(CharacterMetaAccumulator::gameCount).reversed()
+                        .comparing((CharacterMetaAccumulator accumulator) -> accumulator.metaScore(totalGames)).reversed()
+                        .thenComparing(CharacterMetaAccumulator::gameCount, Comparator.reverseOrder())
                         .thenComparing(CharacterMetaAccumulator::averageRank, Comparator.nullsLast(Double::compareTo))
                         .thenComparing(CharacterMetaAccumulator::characterNum))
                 .map(accumulator -> accumulator.toMap(totalGames))
@@ -463,6 +533,20 @@ public class EternalReturnService {
         return cacheEntry != null && cacheEntry.expiresAt().isAfter(now);
     }
 
+    private Instant nextTodayCharacterRefreshAt(Instant now) {
+        ZonedDateTime currentTime = now.atZone(TODAY_CHARACTER_REFRESH_ZONE);
+        ZonedDateTime refreshTime = currentTime
+                .withHour(TODAY_CHARACTER_REFRESH_HOUR)
+                .withMinute(0)
+                .withSecond(0)
+                .withNano(0);
+        if (!currentTime.isBefore(refreshTime)) {
+            refreshTime = refreshTime.plusDays(1);
+        }
+
+        return refreshTime.toInstant();
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> asMap(Object value) {
         if (value instanceof Map<?, ?> map) {
@@ -539,18 +623,48 @@ public class EternalReturnService {
             return round((double) rankSum / rankCount);
         }
 
+        private double pickRate(int totalGames) {
+            return rate(gameCount, totalGames);
+        }
+
+        private double winRate() {
+            return rate(winCount, gameCount);
+        }
+
+        private double top3Rate() {
+            return rate(top3Count, gameCount);
+        }
+
+        private double sampleConfidence() {
+            return round(Math.min(1.0, gameCount / 5.0));
+        }
+
+        private double metaScore(int totalGames) {
+            Double averageRank = averageRank();
+            double rankScore = averageRank == null || averageRank <= 0 ? 0.0 : 1.0 / averageRank;
+            double rawScore = (winRate() * 0.40)
+                    + (top3Rate() * 0.35)
+                    + (rankScore * 0.15)
+                    + (pickRate(totalGames) * 0.10);
+            double confidenceWeight = 0.60 + (sampleConfidence() * 0.40);
+
+            return round(rawScore * confidenceWeight);
+        }
+
         private Map<String, Object> toMap(int totalGames) {
             Map<String, Object> meta = new LinkedHashMap<>();
             meta.put("characterNum", characterNum);
             meta.put("characterName", characterName);
             meta.put("gameCount", gameCount);
-            meta.put("pickRate", rate(gameCount, totalGames));
+            meta.put("pickRate", pickRate(totalGames));
             meta.put("winCount", winCount);
-            meta.put("winRate", rate(winCount, gameCount));
+            meta.put("winRate", winRate());
             meta.put("top3Count", top3Count);
-            meta.put("top3Rate", rate(top3Count, gameCount));
+            meta.put("top3Rate", top3Rate());
             meta.put("averageRank", averageRank());
             meta.put("averageKills", rate(killSum, gameCount));
+            meta.put("sampleConfidence", sampleConfidence());
+            meta.put("metaScore", metaScore(totalGames));
             return meta;
         }
 

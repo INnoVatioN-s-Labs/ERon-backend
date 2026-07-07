@@ -14,6 +14,11 @@ public class EternalReturnApiProperties {
     private Duration userGamesCacheTtl = Duration.ofSeconds(30);
     private long cacheMaximumSize = 10_000;
     private String[] corsAllowedOrigins = {"http://localhost:5173"};
+    private int currentSeasonId = 39;
+    private int currentMatchingTeamMode = 3;
+    private String currentMetaTier = "";
+    private int currentMetaRankingSampleLimit = 1000;
+    private int currentMetaMinimumCharacterGames = 10;
 
     public String getBaseUrl() {
         return baseUrl;
@@ -69,5 +74,45 @@ public class EternalReturnApiProperties {
 
     public void setCorsAllowedOrigins(String[] corsAllowedOrigins) {
         this.corsAllowedOrigins = corsAllowedOrigins;
+    }
+
+    public int getCurrentSeasonId() {
+        return currentSeasonId;
+    }
+
+    public void setCurrentSeasonId(int currentSeasonId) {
+        this.currentSeasonId = currentSeasonId;
+    }
+
+    public int getCurrentMatchingTeamMode() {
+        return currentMatchingTeamMode;
+    }
+
+    public void setCurrentMatchingTeamMode(int currentMatchingTeamMode) {
+        this.currentMatchingTeamMode = currentMatchingTeamMode;
+    }
+
+    public String getCurrentMetaTier() {
+        return currentMetaTier;
+    }
+
+    public void setCurrentMetaTier(String currentMetaTier) {
+        this.currentMetaTier = currentMetaTier;
+    }
+
+    public int getCurrentMetaRankingSampleLimit() {
+        return currentMetaRankingSampleLimit;
+    }
+
+    public void setCurrentMetaRankingSampleLimit(int currentMetaRankingSampleLimit) {
+        this.currentMetaRankingSampleLimit = currentMetaRankingSampleLimit;
+    }
+
+    public int getCurrentMetaMinimumCharacterGames() {
+        return currentMetaMinimumCharacterGames;
+    }
+
+    public void setCurrentMetaMinimumCharacterGames(int currentMetaMinimumCharacterGames) {
+        this.currentMetaMinimumCharacterGames = currentMetaMinimumCharacterGames;
     }
 }
