@@ -29,7 +29,9 @@ public class CharacterMetaStatService {
     private final int currentSeasonId;
     private final int currentMatchingTeamMode;
     private final int currentMetaRankingSampleLimit;
+    private final int currentMetaRankingBatchSize;
     private final int currentMetaMinimumCharacterGames;
+    private final int currentMetaSampleRetentionDays;
     private volatile Instant rateLimitedUntil = Instant.EPOCH;
 
     public CharacterMetaStatService(
@@ -42,16 +44,23 @@ public class CharacterMetaStatService {
         this.currentSeasonId = properties.getCurrentSeasonId();
         this.currentMatchingTeamMode = properties.getCurrentMatchingTeamMode();
         this.currentMetaRankingSampleLimit = properties.getCurrentMetaRankingSampleLimit();
+        this.currentMetaRankingBatchSize = properties.getCurrentMetaRankingBatchSize();
         this.currentMetaMinimumCharacterGames = properties.getCurrentMetaMinimumCharacterGames();
+        this.currentMetaSampleRetentionDays = properties.getCurrentMetaSampleRetentionDays();
     }
 
     public Map<String, Object> getTodayCharacterMeta() {
-        int sampleGameCount = characterMetaStatRepository.totalGames(currentSeasonId, currentMatchingTeamMode);
+        int sampleGameCount = characterMetaStatRepository.totalGames(
+                currentSeasonId,
+                currentMatchingTeamMode,
+                currentMetaSampleRetentionDays
+        );
         List<Map<String, Object>> characters = characterMetaStatRepository.findCharacterMeta(
                 currentSeasonId,
                 currentMatchingTeamMode,
                 currentMetaMinimumCharacterGames,
-                TODAY_CHARACTER_LIMIT
+                TODAY_CHARACTER_LIMIT,
+                currentMetaSampleRetentionDays
         );
 
         return Map.of(
@@ -59,6 +68,7 @@ public class CharacterMetaStatService {
                 "matchingTeamMode", currentMatchingTeamMode,
                 "rankingSampleLimit", currentMetaRankingSampleLimit,
                 "minimumCharacterGames", currentMetaMinimumCharacterGames,
+                "sampleRetentionDays", currentMetaSampleRetentionDays,
                 "sampleGameCount", sampleGameCount,
                 "source", "stored",
                 "characters", characters
@@ -71,6 +81,8 @@ public class CharacterMetaStatService {
             return rateLimitedResult(0, 0, 0, 0, 0);
         }
 
+        int purgedSampleCount = characterMetaStatRepository.purgeSamplesOlderThan(currentMetaSampleRetentionDays);
+
         Map<String, Object> response;
         try {
             response = eternalReturnApiClient.getTopRankings(currentSeasonId, currentMatchingTeamMode);
@@ -82,28 +94,29 @@ public class CharacterMetaStatService {
             throw exception;
         }
         if (!(response.get("topRanks") instanceof List<?> topRanks)) {
-            return refreshResult(0, 0, 0, 0, 0);
+            return refreshResult(0, 0, 0, 0, 0, 0, purgedSampleCount);
         }
 
         int visitedRankerCount = 0;
         int savedSampleCount = 0;
         int availableRankerCount = topRanks.size();
-        int limit = Math.min(availableRankerCount, Math.max(1, currentMetaRankingSampleLimit));
+        int rankerPoolSize = Math.min(availableRankerCount, Math.max(1, currentMetaRankingSampleLimit));
+        int batchSize = Math.min(rankerPoolSize, Math.max(1, currentMetaRankingBatchSize));
         String stateKey = collectionStateKey();
-        int startRankIndex = normalizeRankIndex(characterMetaStatRepository.nextRankIndex(stateKey), limit);
+        int startRankIndex = normalizeRankIndex(characterMetaStatRepository.nextRankIndex(stateKey), rankerPoolSize);
         int nextRankIndex = startRankIndex;
-        for (int visitedSlotCount = 0; visitedSlotCount < limit; visitedSlotCount++) {
-            int index = (startRankIndex + visitedSlotCount) % limit;
+        for (int visitedSlotCount = 0; visitedSlotCount < batchSize; visitedSlotCount++) {
+            int index = (startRankIndex + visitedSlotCount) % rankerPoolSize;
             Map<String, Object> ranking = asMap(topRanks.get(index));
             if (ranking.isEmpty()) {
-                nextRankIndex = (index + 1) % limit;
+                nextRankIndex = (index + 1) % rankerPoolSize;
                 continue;
             }
 
             try {
                 String userId = rankingUserId(ranking);
                 if (userId == null) {
-                    nextRankIndex = (index + 1) % limit;
+                    nextRankIndex = (index + 1) % rankerPoolSize;
                     continue;
                 }
 
@@ -114,7 +127,7 @@ public class CharacterMetaStatService {
                         .toList();
                 savedSampleCount += characterMetaStatRepository.saveSamples(userId, rankedGames);
                 visitedRankerCount++;
-                nextRankIndex = (index + 1) % limit;
+                nextRankIndex = (index + 1) % rankerPoolSize;
             } catch (EternalReturnApiException exception) {
                 log.warn(
                         "Failed to collect character meta sample: rank={}, nickname={}, status={}",
@@ -126,12 +139,12 @@ public class CharacterMetaStatService {
                     markRateLimited();
                     break;
                 }
-                nextRankIndex = (index + 1) % limit;
+                nextRankIndex = (index + 1) % rankerPoolSize;
             }
         }
 
         characterMetaStatRepository.saveNextRankIndex(stateKey, nextRankIndex);
-        return refreshResult(visitedRankerCount, savedSampleCount, startRankIndex, nextRankIndex, availableRankerCount);
+        return refreshResult(visitedRankerCount, savedSampleCount, startRankIndex, nextRankIndex, availableRankerCount, batchSize, purgedSampleCount);
     }
 
     @Scheduled(cron = "0 0 9 * * *", zone = "Asia/Seoul")
@@ -145,18 +158,27 @@ public class CharacterMetaStatService {
             int savedSampleCount,
             int startRankIndex,
             int nextRankIndex,
-            int availableRankerCount
+            int availableRankerCount,
+            int batchSize,
+            int purgedSampleCount
     ) {
-        return Map.of(
-                "seasonId", currentSeasonId,
-                "matchingTeamMode", currentMatchingTeamMode,
-                "rankingSampleLimit", currentMetaRankingSampleLimit,
-                "availableRankerCount", availableRankerCount,
-                "startRankIndex", startRankIndex,
-                "nextRankIndex", nextRankIndex,
-                "visitedRankerCount", visitedRankerCount,
-                "savedSampleCount", savedSampleCount,
-                "sampleGameCount", characterMetaStatRepository.totalGames(currentSeasonId, currentMatchingTeamMode)
+        return Map.ofEntries(
+                Map.entry("seasonId", currentSeasonId),
+                Map.entry("matchingTeamMode", currentMatchingTeamMode),
+                Map.entry("rankingSampleLimit", currentMetaRankingSampleLimit),
+                Map.entry("rankingBatchSize", batchSize),
+                Map.entry("sampleRetentionDays", currentMetaSampleRetentionDays),
+                Map.entry("availableRankerCount", availableRankerCount),
+                Map.entry("startRankIndex", startRankIndex),
+                Map.entry("nextRankIndex", nextRankIndex),
+                Map.entry("visitedRankerCount", visitedRankerCount),
+                Map.entry("savedSampleCount", savedSampleCount),
+                Map.entry("purgedSampleCount", purgedSampleCount),
+                Map.entry("sampleGameCount", characterMetaStatRepository.totalGames(
+                        currentSeasonId,
+                        currentMatchingTeamMode,
+                        currentMetaSampleRetentionDays
+                ))
         );
     }
 
@@ -176,7 +198,11 @@ public class CharacterMetaStatService {
                 Map.entry("nextRankIndex", nextRankIndex),
                 Map.entry("visitedRankerCount", visitedRankerCount),
                 Map.entry("savedSampleCount", savedSampleCount),
-                Map.entry("sampleGameCount", characterMetaStatRepository.totalGames(currentSeasonId, currentMatchingTeamMode)),
+                Map.entry("sampleGameCount", characterMetaStatRepository.totalGames(
+                        currentSeasonId,
+                        currentMatchingTeamMode,
+                        currentMetaSampleRetentionDays
+                )),
                 Map.entry("rateLimited", true),
                 Map.entry("retryAfterSeconds", retryAfterSeconds())
         );

@@ -4,7 +4,10 @@ import java.sql.PreparedStatement;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.time.Clock;
+import java.time.Duration;
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 
@@ -51,7 +54,8 @@ public class CharacterMetaStatRepository {
             int seasonId,
             int matchingTeamMode,
             int minimumCharacterGames,
-            int limit
+            int limit,
+            int retentionDays
     ) {
         String sql = """
                 SELECT
@@ -68,18 +72,14 @@ public class CharacterMetaStatRepository {
                 WHERE season_id = ?
                   AND matching_team_mode = ?
                   AND character_num IS NOT NULL
+                  AND collected_at >= ?
                 GROUP BY character_num
                 HAVING COUNT(*) >= ?
-                ORDER BY
-                    ROUND(AVG(CASE WHEN game_rank <= 3 THEN 1.0 ELSE 0.0 END), 4) DESC,
-                    COUNT(*) DESC,
-                    ROUND(AVG(CAST(game_rank AS DOUBLE)), 2) ASC,
-                    character_num ASC
-                LIMIT ?
                 """;
 
-        int totalGames = totalGames(seasonId, matchingTeamMode);
-        return jdbcTemplate.query(sql, (rs, rowNum) -> {
+        Timestamp retentionCutoff = retentionCutoff(retentionDays);
+        int totalGames = totalGames(seasonId, matchingTeamMode, retentionDays);
+        List<Map<String, Object>> characters = jdbcTemplate.query(sql, (rs, rowNum) -> {
             int gameCount = rs.getInt("gameCount");
             int winCount = rs.getInt("winCount");
             int top3Count = rs.getInt("top3Count");
@@ -89,7 +89,7 @@ public class CharacterMetaStatRepository {
             double averageRank = rs.getDouble("averageRank");
             double metaScore = metaScore(winRate, top3Rate, averageRank, pickRate, gameCount);
 
-            return Map.ofEntries(
+            return Map.<String, Object>ofEntries(
                     Map.entry("characterNum", rs.getInt("characterNum")),
                     Map.entry("characterName", rs.getString("characterName")),
                     Map.entry("gameCount", gameCount),
@@ -105,21 +105,48 @@ public class CharacterMetaStatRepository {
                     Map.entry("sampleConfidence", sampleConfidence(gameCount)),
                     Map.entry("metaScore", metaScore)
             );
-        }, seasonId, matchingTeamMode, Math.max(1, minimumCharacterGames), Math.max(1, limit));
+        }, seasonId, matchingTeamMode, retentionCutoff, Math.max(1, minimumCharacterGames));
+
+        characters.sort(
+                Comparator.comparingDouble((Map<String, Object> character) -> doubleValue(character.get("metaScore")))
+                        .reversed()
+                        .thenComparing(Comparator.comparingInt((Map<String, Object> character) -> intValue(character.get("gameCount"))).reversed())
+                        .thenComparingInt(character -> intValue(character.get("characterNum")))
+        );
+
+        int effectiveLimit = Math.max(1, limit);
+        if (characters.size() > effectiveLimit) {
+            return new ArrayList<>(characters.subList(0, effectiveLimit));
+        }
+
+        return characters;
     }
 
-    public int totalGames(int seasonId, int matchingTeamMode) {
+    public int totalGames(int seasonId, int matchingTeamMode, int retentionDays) {
         Integer totalGames = jdbcTemplate.queryForObject(
                 """
                 SELECT COUNT(*)
                 FROM character_meta_match_sample
-                WHERE season_id = ? AND matching_team_mode = ?
+                WHERE season_id = ? AND matching_team_mode = ? AND collected_at >= ?
                 """,
                 Integer.class,
                 seasonId,
-                matchingTeamMode
+                matchingTeamMode,
+                retentionCutoff(retentionDays)
         );
         return totalGames == null ? 0 : totalGames;
+    }
+
+    public int purgeSamplesOlderThan(int retentionDays) {
+        if (retentionDays <= 0) {
+            return 0;
+        }
+
+        Timestamp cutoff = Timestamp.from(Instant.now(clock).minus(Duration.ofDays(retentionDays)));
+        return jdbcTemplate.update(
+                "DELETE FROM character_meta_match_sample WHERE collected_at < ?",
+                cutoff
+        );
     }
 
     public int nextRankIndex(String stateKey) {
@@ -260,5 +287,21 @@ public class CharacterMetaStatRepository {
 
     private double round(double value) {
         return Math.round(value * 100.0) / 100.0;
+    }
+
+    private Timestamp retentionCutoff(int retentionDays) {
+        if (retentionDays <= 0) {
+            return Timestamp.from(Instant.EPOCH);
+        }
+
+        return Timestamp.from(Instant.now(clock).minus(Duration.ofDays(retentionDays)));
+    }
+
+    private double doubleValue(Object value) {
+        return value instanceof Number number ? number.doubleValue() : 0.0;
+    }
+
+    private int intValue(Object value) {
+        return value instanceof Number number ? number.intValue() : 0;
     }
 }
