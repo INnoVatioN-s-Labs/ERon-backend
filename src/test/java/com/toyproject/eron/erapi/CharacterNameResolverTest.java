@@ -15,6 +15,11 @@ class CharacterNameResolverTest {
     }
 
     @Test
+    void knownCodeUsesKoreanFallbackWhenResolvedNameIsEnglish() {
+        assertThat(resolver.resolve(70, "Tsubame")).isEqualTo("츠바메");
+    }
+
+    @Test
     void unknownCodeUsesProvidedName() {
         assertThat(resolver.resolve(90, "New Character")).isEqualTo("New Character");
     }
@@ -26,7 +31,7 @@ class CharacterNameResolverTest {
 
     @Test
     void blankNameUsesFallbackLabel() {
-        assertThat(resolver.resolve(65, "   ")).isEqualTo("실험체 65");
+        assertThat(resolver.resolve(90, "   ")).isEqualTo("실험체 90");
     }
 
     @Test

@@ -38,6 +38,7 @@ class EternalReturnApiClientTest {
     // 실험체명은 공식 l10n(한글)에서 온다. 테스트 l10n 파일에 코드→한글명을 넣어 둔다.
     private static final String DEFAULT_CHARACTER_L10N = """
             Character/Name/1┃재키
+            Character/Name/17┃아드리아나
             Character/Name/22┃루크
             Character/Name/45┃마이
             Character/Name/68┃알론소
@@ -615,7 +616,7 @@ class EternalReturnApiClientTest {
         );
         assertThat(secondResponse).isSameAs(firstResponse);
         assertThat(capturedRequests).extracting(CapturedRequest::path)
-                .containsExactly("/data/CharacterSkin", "/data/Character");
+                .containsExactly("/data/CharacterSkin", "/l10n/Korean", "/l10n-ko.txt");
     }
 
     @Test
