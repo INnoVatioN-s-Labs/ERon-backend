@@ -139,7 +139,7 @@ class EternalReturnApiClientTest {
                           "gameRank": 3,
                           "bestWeapon": 7,
                           "bestWeaponLevel": 18,
-                          "tacticalSkillGroupCode": 130,
+                          "tacticalSkillGroupCode": 30,
                           "traitFirstCore": 7000401,
                           "traitFirstSub": [7011001, 7010311],
                           "traitSecondSub": [7110701, 7110601],
@@ -199,8 +199,8 @@ class EternalReturnApiClientTest {
                     assertThat(game.bestWeapon()).isEqualTo(7);
                     assertThat(game.bestWeaponName()).isEqualTo("활");
                     assertThat(game.bestWeaponLevel()).isEqualTo(18);
-                    assertThat(game.tacticalSkillGroupCode()).isEqualTo(130);
-                    assertThat(game.tacticalSkill()).isEqualTo("전장의 일격");
+                    assertThat(game.tacticalSkillGroupCode()).isEqualTo(30);
+                    assertThat(game.tacticalSkill()).isEqualTo("블링크");
                     assertThat(game.traits())
                             .extracting(trait -> trait.traitName())
                             .containsExactly("흡혈마", "갈증", "철갑탄", "대담", "대담");
@@ -448,7 +448,7 @@ class EternalReturnApiClientTest {
                           "protectAbsorb": 3171,
                           "bestWeapon": 7,
                           "bestWeaponLevel": 18,
-                          "tacticalSkillGroupCode": 130,
+                          "tacticalSkillGroupCode": 30,
                           "traitFirstCore": 7000401,
                           "traitFirstSub": [7011001, 7010311],
                           "traitSecondSub": [7110701, 7110601],
@@ -545,8 +545,8 @@ class EternalReturnApiClientTest {
                     assertThat(participant.protectAbsorb()).isEqualTo(3171);
                     assertThat(participant.bestWeapon()).isEqualTo(7);
                     assertThat(participant.bestWeaponLevel()).isEqualTo(18);
-                    assertThat(participant.tacticalSkillGroupCode()).isEqualTo(130);
-                    assertThat(participant.tacticalSkill()).isEqualTo("전장의 일격");
+                    assertThat(participant.tacticalSkillGroupCode()).isEqualTo(30);
+                    assertThat(participant.tacticalSkill()).isEqualTo("블링크");
                     assertThat(participant.traits())
                             .extracting(trait -> trait.traitName())
                             .containsExactly("흡혈마", "갈증", "철갑탄", "대담", "대담");
@@ -1053,7 +1053,6 @@ class EternalReturnApiClientTest {
         server.createContext("/l10n-ko.txt", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
             writeJson(exchange, 200, characterLines + """
-                    Skill/Group/Name/4112000\u2503전장의 일격
                     Trait/Name/7000401\t흡혈마
                     Trait/Name/7011001\t갈증
                     Trait/Name/7010311\t철갑탄

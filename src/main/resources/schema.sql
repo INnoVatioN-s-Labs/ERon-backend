@@ -6,6 +6,10 @@ CREATE TABLE IF NOT EXISTS character_meta_match_sample (
     matching_team_mode INTEGER,
     character_num INTEGER,
     character_name VARCHAR(64),
+    best_weapon INTEGER,
+    best_weapon_name VARCHAR(64),
+    tactical_skill_group_code INTEGER,
+    tactical_skill VARCHAR(64),
     game_rank INTEGER,
     player_kill INTEGER,
     player_assistant INTEGER,
@@ -19,8 +23,23 @@ CREATE TABLE IF NOT EXISTS character_meta_match_sample (
     PRIMARY KEY (game_id, source_user_id)
 );
 
+ALTER TABLE character_meta_match_sample
+    ADD COLUMN IF NOT EXISTS best_weapon INTEGER;
+
+ALTER TABLE character_meta_match_sample
+    ADD COLUMN IF NOT EXISTS best_weapon_name VARCHAR(64);
+
+ALTER TABLE character_meta_match_sample
+    ADD COLUMN IF NOT EXISTS tactical_skill_group_code INTEGER;
+
+ALTER TABLE character_meta_match_sample
+    ADD COLUMN IF NOT EXISTS tactical_skill VARCHAR(64);
+
 CREATE INDEX IF NOT EXISTS idx_character_meta_sample_scope
     ON character_meta_match_sample (season_id, matching_team_mode, character_num);
+
+CREATE INDEX IF NOT EXISTS idx_character_meta_sample_weapon_scope
+    ON character_meta_match_sample (season_id, matching_team_mode, character_num, best_weapon, tactical_skill_group_code);
 
 CREATE TABLE IF NOT EXISTS character_meta_collection_state (
     state_key VARCHAR(80) PRIMARY KEY,

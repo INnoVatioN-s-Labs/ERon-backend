@@ -5,6 +5,7 @@ import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Optional;
@@ -47,42 +48,48 @@ public class EternalReturnApiClient {
             Pattern.compile("\"code\"\\s*:\\s*(\\d+).*?\"name\"\\s*:\\s*\"([^\"]+)\"");
     // 공식 l10n 텍스트에서 실험체명 항목의 키 접두사: "Character/Name/{code}"
     private static final String L10N_CHARACTER_NAME_PREFIX = "Character/Name/";
-    private static final Map<Integer, Integer> TACTICAL_SKILL_GROUPS = Map.ofEntries(
-            Map.entry(30, 4_000_000),
-            Map.entry(40, 4_001_000),
-            Map.entry(50, 4_101_000),
-            Map.entry(60, 4_102_000),
-            Map.entry(70, 4_103_000),
-            Map.entry(80, 4_104_000),
-            Map.entry(90, 4_105_000),
-            Map.entry(110, 4_107_000),
-            Map.entry(120, 4_110_000),
-            Map.entry(130, 4_112_000),
-            Map.entry(140, 4_113_000),
-            Map.entry(150, 4_108_000),
-            Map.entry(500010, 4_501_000),
-            Map.entry(500020, 4_502_000),
-            Map.entry(500030, 4_503_000),
-            Map.entry(500040, 4_504_000),
-            Map.entry(500050, 4_505_000),
-            Map.entry(500060, 4_506_000),
-            Map.entry(500070, 4_507_000),
-            Map.entry(500080, 4_508_000),
-            Map.entry(500090, 4_509_000),
-            Map.entry(500100, 4_510_000),
-            Map.entry(500110, 4_511_000),
-            Map.entry(500120, 4_000_000),
-            Map.entry(500130, 4_001_000),
-            Map.entry(500140, 4_101_000),
-            Map.entry(500150, 4_102_000),
-            Map.entry(500160, 4_103_000),
-            Map.entry(500170, 4_104_000),
-            Map.entry(500180, 4_105_000),
-            Map.entry(500190, 4_107_000),
-            Map.entry(500200, 4_110_000),
-            Map.entry(500210, 4_112_000),
-            Map.entry(500220, 4_113_000),
-            Map.entry(500230, 4_108_000)
+    private static final Map<Integer, List<Integer>> TACTICAL_SKILL_GROUP_NAME_CODES = Map.ofEntries(
+            Map.entry(30, List.of(6_500_000, 4_000_000)),
+            Map.entry(40, List.of(6_501_000, 4_001_000)),
+            Map.entry(50, List.of(6_502_000, 4_101_000)),
+            Map.entry(60, List.of(6_503_000, 4_102_000)),
+            Map.entry(70, List.of(6_504_000, 4_103_000)),
+            Map.entry(80, List.of(6_505_000, 4_104_000)),
+            Map.entry(90, List.of(6_506_000, 4_105_000)),
+            Map.entry(100, List.of(6_507_000)),
+            Map.entry(110, List.of(6_508_000, 4_107_000)),
+            Map.entry(120, List.of(6_509_000, 4_110_000)),
+            Map.entry(130, List.of(6_510_000, 4_112_000)),
+            Map.entry(140, List.of(6_511_000, 4_113_000)),
+            Map.entry(150, List.of(6_512_000, 4_108_000)),
+            Map.entry(160, List.of(6_513_000)),
+            Map.entry(170, List.of(6_514_000)),
+            Map.entry(180, List.of(6_515_000)),
+            Map.entry(190, List.of(6_516_000)),
+            Map.entry(200, List.of(6_517_000)),
+            Map.entry(500010, List.of(4_501_000)),
+            Map.entry(500020, List.of(4_502_000)),
+            Map.entry(500030, List.of(4_503_000)),
+            Map.entry(500040, List.of(4_504_000)),
+            Map.entry(500050, List.of(4_505_000)),
+            Map.entry(500060, List.of(4_506_000)),
+            Map.entry(500070, List.of(4_507_000)),
+            Map.entry(500080, List.of(4_508_000)),
+            Map.entry(500090, List.of(4_509_000)),
+            Map.entry(500100, List.of(4_510_000)),
+            Map.entry(500110, List.of(4_511_000)),
+            Map.entry(500120, List.of(6_500_000, 4_000_000)),
+            Map.entry(500130, List.of(6_501_000, 4_001_000)),
+            Map.entry(500140, List.of(6_502_000, 4_101_000)),
+            Map.entry(500150, List.of(6_503_000, 4_102_000)),
+            Map.entry(500160, List.of(6_504_000, 4_103_000)),
+            Map.entry(500170, List.of(6_505_000, 4_104_000)),
+            Map.entry(500180, List.of(6_506_000, 4_105_000)),
+            Map.entry(500190, List.of(6_508_000, 4_107_000)),
+            Map.entry(500200, List.of(6_509_000, 4_110_000)),
+            Map.entry(500210, List.of(6_510_000, 4_112_000)),
+            Map.entry(500220, List.of(6_511_000, 4_113_000)),
+            Map.entry(500230, List.of(6_512_000, 4_108_000))
     );
     private static final Map<Integer, String> WEAPON_MASTERY_NAMES = Map.ofEntries(
             Map.entry(1, "글러브"),
@@ -114,6 +121,7 @@ public class EternalReturnApiClient {
     private final RestClient restClient;
     private final EternalReturnApiProperties properties;
     private final CharacterNameResolver characterNameResolver = new CharacterNameResolver();
+    private final TacticalSkillNameResolver tacticalSkillNameResolver = new TacticalSkillNameResolver();
     private volatile Map<Integer, String> characterNamesByCodeCache;
     private volatile Map<Integer, String> equipmentNamesByCodeCache;
     private volatile Map<String, String> koreanL10nCache;
@@ -243,6 +251,97 @@ public class EternalReturnApiClient {
 
             return skinMetadataCache;
         }
+    }
+
+    public List<Map<String, Object>> getTacticalSkillMetadata(List<Integer> tacticalSkillGroupCodes) {
+        Map<String, String> koreanL10n = getKoreanL10n();
+        return tacticalSkillGroupCodes.stream()
+                .filter(code -> code != null)
+                .distinct()
+                .map(code -> tacticalSkillMetadata(code, koreanL10n))
+                .toList();
+    }
+
+    public List<Map<String, String>> searchKoreanL10n(String query, int limit) {
+        if (!StringUtils.hasText(query)) {
+            return List.of();
+        }
+
+        String normalizedQuery = query.trim();
+        return getKoreanL10n().entrySet()
+                .stream()
+                .filter(entry -> entry.getKey().contains(normalizedQuery) || entry.getValue().contains(normalizedQuery))
+                .limit(Math.max(1, limit))
+                .map(entry -> Map.of(
+                        "key", entry.getKey(),
+                        "value", entry.getValue()
+                ))
+                .toList();
+    }
+
+    private Map<String, Object> tacticalSkillMetadata(Integer tacticalSkillGroupCode, Map<String, String> koreanL10n) {
+        List<Integer> candidateGroupCodes = TACTICAL_SKILL_GROUP_NAME_CODES.getOrDefault(
+                tacticalSkillGroupCode,
+                List.of(tacticalSkillGroupCode)
+        );
+        List<Map<String, Object>> candidates = candidateGroupCodes.stream()
+                .map(code -> tacticalSkillNameCandidate(code, koreanL10n))
+                .toList();
+        String resolvedName = tacticalSkillNameFromL10n(tacticalSkillGroupCode, koreanL10n);
+
+        return Map.of(
+                "tacticalSkillGroupCode", tacticalSkillGroupCode,
+                "tacticalSkill", tacticalSkillNameResolver.resolve(tacticalSkillGroupCode, resolvedName),
+                "candidates", candidates
+        );
+    }
+
+    private Map<String, Object> tacticalSkillNameCandidate(Integer groupCode, Map<String, String> koreanL10n) {
+        Map<String, Object> candidate = new LinkedHashMap<>();
+        candidate.put("groupCode", groupCode);
+        candidate.put("groupName", koreanL10n.get("Skill/Group/Name/" + groupCode));
+        candidate.put("skillName", koreanL10n.get("Skill/Name/" + groupCode));
+        candidate.put("names", tacticalSkillL10nNameCandidates(groupCode, koreanL10n));
+        candidate.put("levelSkillNames", tacticalSkillLevelNameCandidates(groupCode, koreanL10n));
+        return candidate;
+    }
+
+    private List<Map<String, Object>> tacticalSkillL10nNameCandidates(
+            Integer code,
+            Map<String, String> koreanL10n
+    ) {
+        return List.of(
+                        "Skill/Group/Name/",
+                        "SkillGroup/Name/",
+                        "Skill/Name/",
+                        "TacticalSkill/Group/Name/",
+                        "TacticalSkillGroup/Name/",
+                        "TacticalSkill/Name/"
+                )
+                .stream()
+                .map(prefix -> {
+                    Map<String, Object> candidate = new LinkedHashMap<>();
+                    candidate.put("key", prefix + code);
+                    candidate.put("name", koreanL10n.get(prefix + code));
+                    return candidate;
+                })
+                .toList();
+    }
+
+    private List<Map<String, Object>> tacticalSkillLevelNameCandidates(
+            Integer groupCode,
+            Map<String, String> koreanL10n
+    ) {
+        return List.of(groupCode + 1, groupCode + 2, groupCode + 3)
+                .stream()
+                .map(code -> {
+                    Map<String, Object> candidate = new LinkedHashMap<>();
+                    candidate.put("skillCode", code);
+                    candidate.put("skillName", koreanL10n.get("Skill/Name/" + code));
+                    candidate.put("names", tacticalSkillL10nNameCandidates(code, koreanL10n));
+                    return candidate;
+                })
+                .toList();
     }
 
     private Map<String, Object> getJson(String path, Object... uriVariables) {
@@ -505,8 +604,40 @@ public class EternalReturnApiClient {
             return null;
         }
 
-        Integer skillGroupCode = TACTICAL_SKILL_GROUPS.getOrDefault(tacticalSkillGroupCode, tacticalSkillGroupCode);
-        return koreanL10n.get("Skill/Group/Name/" + skillGroupCode);
+        String resolvedName = tacticalSkillNameFromL10n(tacticalSkillGroupCode, koreanL10n);
+        return tacticalSkillNameResolver.resolve(tacticalSkillGroupCode, resolvedName);
+    }
+
+    private String tacticalSkillNameFromL10n(Integer tacticalSkillGroupCode, Map<String, String> koreanL10n) {
+        List<Integer> skillGroupCodes = TACTICAL_SKILL_GROUP_NAME_CODES.getOrDefault(
+                tacticalSkillGroupCode,
+                List.of(tacticalSkillGroupCode)
+        );
+        for (Integer skillGroupCode : skillGroupCodes) {
+            String name = firstTacticalSkillNameCandidate(skillGroupCode, koreanL10n);
+            if (StringUtils.hasText(name)) {
+                return name;
+            }
+        }
+
+        return firstNonBlankString(
+                koreanL10n.get("Skill/Group/Name/" + tacticalSkillGroupCode),
+                koreanL10n.get("Skill/Name/" + tacticalSkillGroupCode)
+        );
+    }
+
+    private String firstTacticalSkillNameCandidate(Integer skillGroupCode, Map<String, String> koreanL10n) {
+        for (Integer code : List.of(skillGroupCode, skillGroupCode + 1, skillGroupCode + 2, skillGroupCode + 3)) {
+            String name = firstNonBlankString(tacticalSkillL10nNameCandidates(code, koreanL10n)
+                    .stream()
+                    .map(candidate -> candidate.get("name"))
+                    .toArray());
+            if (StringUtils.hasText(name)) {
+                return name;
+            }
+        }
+
+        return null;
     }
 
     private String traitNameFor(Integer traitCode, Map<String, String> koreanL10n) {

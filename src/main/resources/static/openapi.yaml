@@ -161,6 +161,12 @@ paths:
       responses:
         '200':
           description: Current character meta response.
+  /api/er/meta/current/character-weapons:
+    get:
+      summary: Return stored current character, weapon, and tactical skill meta combinations.
+      responses:
+        '200':
+          description: Current character weapon meta response.
   /api/er/meta/current/characters/refresh:
     post:
       summary: Collect ranked match samples for today character recommendations.
@@ -173,6 +179,38 @@ paths:
       responses:
         '200':
           description: Skin metadata response.
+  /api/er/meta/tactical-skills:
+    get:
+      summary: Return mapped tactical skill metadata and l10n candidate names.
+      parameters:
+        - name: codes
+          in: query
+          required: false
+          schema:
+            type: array
+            items:
+              type: integer
+      responses:
+        '200':
+          description: Tactical skill metadata response.
+  /api/er/meta/l10n/search:
+    get:
+      summary: Search Korean l10n entries by key or value.
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: limit
+          in: query
+          required: false
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Korean l10n search response.
   /api/er/games/{gameId}:
     get:
       summary: Return a mapped game detail.

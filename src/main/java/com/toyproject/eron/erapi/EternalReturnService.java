@@ -265,6 +265,20 @@ public class EternalReturnService {
         return new SkinMetadataResponse(eternalReturnApiClient.getSkinMetadata());
     }
 
+    public Map<String, Object> getTacticalSkillMetadata(List<Integer> tacticalSkillGroupCodes) {
+        return Map.of(
+                "tacticalSkills",
+                eternalReturnApiClient.getTacticalSkillMetadata(tacticalSkillGroupCodes)
+        );
+    }
+
+    public Map<String, Object> searchKoreanL10n(String query, int limit) {
+        return Map.of(
+                "query", query,
+                "matches", eternalReturnApiClient.searchKoreanL10n(query, limit)
+        );
+    }
+
     @SuppressWarnings("unchecked")
     private Map<String, Object> toRankingMap(Object ranking) {
         if (ranking instanceof Map<?, ?> rankingMap) {
