@@ -1,5 +1,7 @@
 package com.toyproject.eron.erapi;
 
+import java.util.List;
+
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.Positive;
 import jakarta.validation.constraints.PositiveOrZero;
@@ -109,6 +111,11 @@ public class EternalReturnController {
         return characterMetaStatService.getTodayCharacterMeta();
     }
 
+    @GetMapping("/meta/current/character-weapons")
+    public java.util.Map<String, Object> getCurrentCharacterWeaponMeta() {
+        return characterMetaStatService.getTodayCharacterWeaponMeta();
+    }
+
     @PostMapping("/meta/current/characters/refresh")
     public java.util.Map<String, Object> refreshCurrentCharacterMeta() {
         return characterMetaStatService.refreshTodayCharacterMetaSamples();
@@ -117,6 +124,21 @@ public class EternalReturnController {
     @GetMapping("/meta/skins")
     public SkinMetadataResponse getSkinMetadata() {
         return eternalReturnService.getSkinMetadata();
+    }
+
+    @GetMapping("/meta/tactical-skills")
+    public java.util.Map<String, Object> getTacticalSkillMetadata(
+            @RequestParam(defaultValue = "30,170") List<Integer> codes
+    ) {
+        return eternalReturnService.getTacticalSkillMetadata(codes);
+    }
+
+    @GetMapping("/meta/l10n/search")
+    public java.util.Map<String, Object> searchKoreanL10n(
+            @RequestParam @NotBlank String query,
+            @RequestParam(defaultValue = "20") @Positive int limit
+    ) {
+        return eternalReturnService.searchKoreanL10n(query, limit);
     }
 
     @GetMapping("/games/{gameId}")

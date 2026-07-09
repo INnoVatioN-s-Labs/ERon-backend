@@ -99,6 +99,40 @@ class CharacterMetaStatRepositoryTest {
     }
 
     @Test
+    void findCharacterWeaponMetaAggregatesStoredSamplesByCharacterAndWeapon() {
+        repository.saveSamples("user-1", List.of(
+                userGame(1001L, "Hart", 8, 4, "기타", 130, "블링크", 1, 6),
+                userGame(1002L, "Hart", 8, 4, "기타", 130, "블링크", 3, 4),
+                userGame(1003L, "Hart", 8, 16, "돌격 소총", 140, "전술 스킬 140", 8, 1),
+                userGame(1004L, "Tsubame", 70, 15, "암기", 140, "전술 스킬 140", 2, 5)
+        ));
+
+        List<Map<String, Object>> characterWeapons = repository.findCharacterWeaponMeta(39, 3, 1, 5);
+
+        assertThat(characterWeapons).hasSize(3);
+        assertThat(characterWeapons.get(0))
+                .containsEntry("characterNum", 8)
+                .containsEntry("characterName", "Hart")
+                .containsEntry("weaponType", 4)
+                .containsEntry("weaponName", "기타")
+                .containsEntry("tacticalSkillGroupCode", 130)
+                .containsEntry("tacticalSkill", "블링크")
+                .containsEntry("gameCount", 2)
+                .containsEntry("pickRate", 0.5)
+                .containsEntry("winRate", 0.5)
+                .containsEntry("top3Rate", 1.0)
+                .containsEntry("averageRank", 2.0)
+                .containsEntry("averageKills", 5.0);
+        assertThat(characterWeapons.get(1))
+                .containsEntry("characterNum", 70)
+                .containsEntry("weaponType", 15)
+                .containsEntry("weaponName", "암기")
+                .containsEntry("tacticalSkillGroupCode", 140)
+                .containsEntry("tacticalSkill", "블링크")
+                .containsEntry("gameCount", 1);
+    }
+
+    @Test
     void savesAndLoadsNextRankIndex() {
         assertThat(repository.nextRankIndex("character-meta:39:3")).isZero();
 
@@ -112,6 +146,20 @@ class CharacterMetaStatRepositoryTest {
     }
 
     private UserGameSummary userGame(long gameId, String characterName, int characterNum, int gameRank, int playerKill) {
+        return userGame(gameId, characterName, characterNum, null, null, null, null, gameRank, playerKill);
+    }
+
+    private UserGameSummary userGame(
+            long gameId,
+            String characterName,
+            int characterNum,
+            Integer bestWeapon,
+            String bestWeaponName,
+            Integer tacticalSkillGroupCode,
+            String tacticalSkill,
+            int gameRank,
+            int playerKill
+    ) {
         return new UserGameSummary(
                 gameId,
                 "testUser",
@@ -131,7 +179,14 @@ class CharacterMetaStatRepositoryTest {
                 46,
                 1620,
                 "2026-05-30T23:15:29.029+0900",
-                551
+                551,
+                bestWeapon,
+                bestWeaponName,
+                null,
+                tacticalSkillGroupCode,
+                tacticalSkill,
+                List.of(),
+                null
         );
     }
 }

@@ -65,6 +65,26 @@ public class CharacterMetaStatService {
         );
     }
 
+    public Map<String, Object> getTodayCharacterWeaponMeta() {
+        int sampleGameCount = characterMetaStatRepository.totalGames(currentSeasonId, currentMatchingTeamMode);
+        List<Map<String, Object>> characterWeapons = characterMetaStatRepository.findCharacterWeaponMeta(
+                currentSeasonId,
+                currentMatchingTeamMode,
+                currentMetaMinimumCharacterGames,
+                TODAY_CHARACTER_LIMIT
+        );
+
+        return Map.of(
+                "seasonId", currentSeasonId,
+                "matchingTeamMode", currentMatchingTeamMode,
+                "rankingSampleLimit", currentMetaRankingSampleLimit,
+                "minimumCombinationGames", currentMetaMinimumCharacterGames,
+                "sampleGameCount", sampleGameCount,
+                "source", "stored",
+                "characterWeapons", characterWeapons
+        );
+    }
+
     public Map<String, Object> refreshTodayCharacterMetaSamples() {
         Instant now = Instant.now();
         if (now.isBefore(rateLimitedUntil)) {

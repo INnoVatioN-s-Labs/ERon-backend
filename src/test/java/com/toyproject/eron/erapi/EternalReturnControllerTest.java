@@ -461,6 +461,45 @@ class EternalReturnControllerTest {
     }
 
     @Test
+    void getCurrentCharacterWeaponMetaReturnsConfiguredBuildStats() throws Exception {
+        when(characterMetaStatService.getTodayCharacterWeaponMeta())
+                .thenReturn(Map.of(
+                        "seasonId", 39,
+                        "matchingTeamMode", 3,
+                        "rankingSampleLimit", 1000,
+                        "sampleGameCount", 3,
+                        "source", "stored",
+                        "characterWeapons", List.of(Map.ofEntries(
+                                Map.entry("characterNum", 8),
+                                Map.entry("characterName", "하트"),
+                                Map.entry("weaponType", 4),
+                                Map.entry("weaponName", "기타"),
+                                Map.entry("tacticalSkillGroupCode", 30),
+                                Map.entry("tacticalSkill", "블링크"),
+                                Map.entry("gameCount", 2),
+                                Map.entry("pickRate", 0.67),
+                                Map.entry("top3Rate", 1.0),
+                                Map.entry("averageRank", 2.0),
+                                Map.entry("averageKills", 5.0)
+                        ))
+                ));
+
+        mockMvc.perform(get("/api/er/meta/current/character-weapons"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.seasonId").value(39))
+                .andExpect(jsonPath("$.matchingTeamMode").value(3))
+                .andExpect(jsonPath("$.rankingSampleLimit").value(1000))
+                .andExpect(jsonPath("$.source").value("stored"))
+                .andExpect(jsonPath("$.sampleGameCount").value(3))
+                .andExpect(jsonPath("$.characterWeapons[0].characterNum").value(8))
+                .andExpect(jsonPath("$.characterWeapons[0].characterName").value("하트"))
+                .andExpect(jsonPath("$.characterWeapons[0].weaponType").value(4))
+                .andExpect(jsonPath("$.characterWeapons[0].weaponName").value("기타"))
+                .andExpect(jsonPath("$.characterWeapons[0].tacticalSkillGroupCode").value(30))
+                .andExpect(jsonPath("$.characterWeapons[0].tacticalSkill").value("블링크"));
+    }
+
+    @Test
     void refreshCurrentCharacterMetaCollectsSamples() throws Exception {
         when(characterMetaStatService.refreshTodayCharacterMetaSamples())
                 .thenReturn(Map.of(
@@ -493,6 +532,54 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.skins[0].characterName").value("아드리아나"))
                 .andExpect(jsonPath("$.skins[0].skinName").value("Hitman"))
                 .andExpect(jsonPath("$.skins[0].skinVariant").value(1));
+    }
+
+    @Test
+    void getTacticalSkillMetadataReturnsMappedSkillList() throws Exception {
+        when(eternalReturnService.getTacticalSkillMetadata(List.of(30, 170)))
+                .thenReturn(Map.of(
+                        "tacticalSkills",
+                        List.of(
+                                Map.of(
+                                        "tacticalSkillGroupCode", 30,
+                                        "tacticalSkill", "블링크",
+                                        "candidates", List.of()
+                                ),
+                                Map.of(
+                                        "tacticalSkillGroupCode", 170,
+                                        "tacticalSkill", "플라즈마 대시",
+                                        "candidates", List.of()
+                                )
+                        )
+                ));
+
+        mockMvc.perform(get("/api/er/meta/tactical-skills")
+                        .param("codes", "30", "170"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.tacticalSkills[0].tacticalSkillGroupCode").value(30))
+                .andExpect(jsonPath("$.tacticalSkills[0].tacticalSkill").value("블링크"))
+                .andExpect(jsonPath("$.tacticalSkills[1].tacticalSkillGroupCode").value(170))
+                .andExpect(jsonPath("$.tacticalSkills[1].tacticalSkill").value("플라즈마 대시"));
+    }
+
+    @Test
+    void searchKoreanL10nReturnsMatchedEntries() throws Exception {
+        when(eternalReturnService.searchKoreanL10n("6500000", 5))
+                .thenReturn(Map.of(
+                        "query", "6500000",
+                        "matches", List.of(Map.of(
+                                "key", "Some/Key/6500000",
+                                "value", "블링크"
+                        ))
+                ));
+
+        mockMvc.perform(get("/api/er/meta/l10n/search")
+                        .param("query", "6500000")
+                        .param("limit", "5"))
+                .andExpect(status().isOk())
+                .andExpect(jsonPath("$.query").value("6500000"))
+                .andExpect(jsonPath("$.matches[0].key").value("Some/Key/6500000"))
+                .andExpect(jsonPath("$.matches[0].value").value("블링크"));
     }
 
     @Test
@@ -640,8 +727,8 @@ class EternalReturnControllerTest {
                                         1,
                                         609,
                                         Map.of("0", new EquipmentSummary(114702, "Longbow", 6)),
-                                        130,
-                                        "전장의 일격",
+                                        30,
+                                        "블링크",
                                         List.of(new TraitSummary(7000401, "흡혈마"))
                                 ),
                                 new GameParticipantSummary(
@@ -697,8 +784,8 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.participants[0].equipmentList[0].itemCode").value(114702))
                 .andExpect(jsonPath("$.participants[0].equipmentList[0].itemName").value("Longbow"))
                 .andExpect(jsonPath("$.participants[0].equipmentList[0].itemGrade").value(6))
-                .andExpect(jsonPath("$.participants[0].tacticalSkillGroupCode").value(130))
-                .andExpect(jsonPath("$.participants[0].tacticalSkill").value("전장의 일격"))
+                .andExpect(jsonPath("$.participants[0].tacticalSkillGroupCode").value(30))
+                .andExpect(jsonPath("$.participants[0].tacticalSkill").value("블링크"))
                 .andExpect(jsonPath("$.participants[0].traits[0].traitCode").value(7000401))
                 .andExpect(jsonPath("$.participants[0].traits[0].traitName").value("흡혈마"))
                 .andExpect(jsonPath("$.participants[1].nickname").value("runnerUp"))
