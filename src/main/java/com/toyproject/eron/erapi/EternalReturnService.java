@@ -36,7 +36,7 @@ public class EternalReturnService {
 
     private static final Logger log = LoggerFactory.getLogger(EternalReturnService.class);
     private static final int RANKING_STATS_ENRICH_LIMIT = 10;
-    private static final int USER_GAMES_DETAIL_LIMIT_MAX = 5;
+    private static final int USER_GAMES_DETAIL_LIMIT_MAX = 10;
     private static final int DEFAULT_CURRENT_SEASON_ID = 39;
     private static final int DEFAULT_CURRENT_MATCHING_TEAM_MODE = 3;
     private static final String DEFAULT_CURRENT_META_TIER = "";
@@ -57,6 +57,7 @@ public class EternalReturnService {
     private final Cache<String, CacheEntry<Map<String, Object>>> topRankingsCache;
     private final Cache<String, CacheEntry<UserSearchResponse>> userSearchCache;
     private final Cache<String, CacheEntry<Map<String, Object>>> todayCharacterCache;
+    private final RankTierResolver rankTierResolver = new RankTierResolver();
 
     @Autowired
     public EternalReturnService(EternalReturnApiClient eternalReturnApiClient, EternalReturnApiProperties properties) {
@@ -116,7 +117,11 @@ public class EternalReturnService {
 
     public UserOverviewResponse getUserOverview(String nickname, int seasonId, int matchingTeamMode) {
         UserSearchResponse user = getCachedUserByNickname(nickname);
-        Map<String, Object> rank = eternalReturnApiClient.getUserRank(user.userId(), seasonId, matchingTeamMode);
+        Map<String, Object> rank = enrichRankResponse(eternalReturnApiClient.getUserRank(
+                user.userId(),
+                seasonId,
+                matchingTeamMode
+        ));
         UserStatsResponse seasonStats = getUserStats(user.userId(), seasonId);
         UserGamesResponse games = getUserGames(user.userId());
         return new UserOverviewResponse(user, rank, seasonStats, games, UserRecentStatsResponse.from(rankedOnly(games)));
@@ -175,12 +180,17 @@ public class EternalReturnService {
             }
         }
 
-        return new UserGamesResponse(response.games(), response.next(), detailsByGameId);
+        return new UserGamesResponse(mergeRouteIds(response.games(), detailsByGameId), response.next(), detailsByGameId);
     }
 
     public UserRankResponse getUserRank(String userId, int seasonId, int matchingTeamMode) {
-        Map<String, Object> response = eternalReturnApiClient.getUserRank(userId, seasonId, matchingTeamMode);
-        return new UserRankResponse(userId, seasonId, matchingTeamMode, asMap(response.get("userRank")), response);
+        Map<String, Object> enrichedResponse = enrichRankResponse(eternalReturnApiClient.getUserRank(
+                userId,
+                seasonId,
+                matchingTeamMode
+        ));
+        Map<String, Object> userRank = asMap(enrichedResponse.get("userRank"));
+        return new UserRankResponse(userId, seasonId, matchingTeamMode, userRank, enrichedResponse);
     }
 
     public TopRankingsResponse getTopRankings(int seasonId, int matchingTeamMode) {
@@ -317,6 +327,45 @@ public class EternalReturnService {
         } catch (EternalReturnApiException exception) {
             return exception.getStatus() != HttpStatus.TOO_MANY_REQUESTS;
         }
+    }
+
+    private List<UserGameSummary> mergeRouteIds(
+            List<UserGameSummary> games,
+            Map<Long, GameDetailResponse> detailsByGameId
+    ) {
+        return games.stream()
+                .map(game -> {
+                    if (game.routeId() != null || game.gameId() == null) {
+                        return game;
+                    }
+
+                    GameDetailResponse detail = detailsByGameId.get(game.gameId());
+                    Integer routeId = routeIdFromDetail(game, detail);
+                    if (routeId == null) {
+                        return game;
+                    }
+
+                    return game.withRouteId(routeId);
+                })
+                .toList();
+    }
+
+    private Integer routeIdFromDetail(UserGameSummary game, GameDetailResponse detail) {
+        if (detail == null) {
+            return null;
+        }
+
+        return detail.participants().stream()
+                .filter(participant -> java.util.Objects.equals(participant.nickname(), game.nickname()))
+                .map(participant -> participant.routeId())
+                .filter(routeId -> routeId != null)
+                .findFirst()
+                .orElseGet(() -> detail.participants().stream()
+                        .filter(participant -> java.util.Objects.equals(participant.characterNum(), game.characterNum()))
+                        .map(participant -> participant.routeId())
+                        .filter(routeId -> routeId != null)
+                        .findFirst()
+                        .orElse(null));
     }
 
     private GameDetailResponse getCachedGame(long gameId) {
@@ -524,6 +573,68 @@ public class EternalReturnService {
         }
 
         return null;
+    }
+
+    private Map<String, Object> enrichRankResponse(Map<String, Object> response) {
+        Map<String, Object> enrichedResponse = new LinkedHashMap<>(response);
+        enrichedResponse.put("userRank", enrichRankTier(asMap(response.get("userRank"))));
+        return enrichedResponse;
+    }
+
+    private Map<String, Object> enrichRankTier(Map<String, Object> userRank) {
+        if (userRank.isEmpty()) {
+            return userRank;
+        }
+
+        Map<String, Object> enrichedRank = new LinkedHashMap<>(userRank);
+        if (hasText(enrichedRank.get("tier")) && hasText(enrichedRank.get("tierName"))) {
+            return enrichedRank;
+        }
+
+        String tier = firstText(enrichedRank.get("tier"), enrichedRank.get("tierName"));
+        if (tier == null) {
+            tier = rankTierResolver.resolve(
+                    firstInteger(enrichedRank.get("rankScore"), enrichedRank.get("mmr")),
+                    toInteger(enrichedRank.get("rank"))
+            );
+        }
+        if (tier != null) {
+            putIfBlank(enrichedRank, "tier", tier);
+            putIfBlank(enrichedRank, "tierName", tier);
+        }
+
+        return enrichedRank;
+    }
+
+    private boolean hasText(Object value) {
+        return value instanceof String text && !text.isBlank();
+    }
+
+    private String firstText(Object... values) {
+        for (Object value : values) {
+            if (hasText(value)) {
+                return String.valueOf(value);
+            }
+        }
+
+        return null;
+    }
+
+    private Integer firstInteger(Object... values) {
+        for (Object value : values) {
+            Integer integer = toInteger(value);
+            if (integer != null) {
+                return integer;
+            }
+        }
+
+        return null;
+    }
+
+    private void putIfBlank(Map<String, Object> map, String key, String value) {
+        if (!hasText(map.get(key))) {
+            map.put(key, value);
+        }
     }
 
     private UserSearchResponse getCachedUserByNickname(String nickname) {

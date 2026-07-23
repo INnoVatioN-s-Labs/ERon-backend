@@ -122,8 +122,12 @@ public class EternalReturnApiClient {
     private final EternalReturnApiProperties properties;
     private final CharacterNameResolver characterNameResolver = new CharacterNameResolver();
     private final TacticalSkillNameResolver tacticalSkillNameResolver = new TacticalSkillNameResolver();
+    private final TraitStyleResolver traitStyleResolver = new TraitStyleResolver();
+    private final TraitNameResolver traitNameResolver = new TraitNameResolver();
+    private final TraitIconCodeResolver traitIconCodeResolver = new TraitIconCodeResolver();
     private volatile Map<Integer, String> characterNamesByCodeCache;
     private volatile Map<Integer, String> equipmentNamesByCodeCache;
+    private volatile Map<Integer, String> traitNamesByCodeCache;
     private volatile Map<String, String> koreanL10nCache;
     private volatile List<SkinMetadata> skinMetadataCache;
 
@@ -196,7 +200,8 @@ public class EternalReturnApiClient {
         Map<String, String> koreanL10n = hasTacticalSkillOrTraits(response)
                 ? getKoreanL10n()
                 : Map.of();
-        return toUserGamesResponse(response, getCharacterNamesByCode(), koreanL10n);
+        Map<Integer, String> traitNamesByCode = hasTraits(response) ? getTraitNamesByCode() : Map.of();
+        return toUserGamesResponse(response, getCharacterNamesByCode(), koreanL10n, traitNamesByCode);
     }
 
     private Map<String, Object> getUserGamesJson(String userId, Long next) {
@@ -231,7 +236,14 @@ public class EternalReturnApiClient {
         Map<String, String> koreanL10n = hasTacticalSkillOrTraits(response)
                 ? getKoreanL10n()
                 : Map.of();
-        return toGameDetailResponse(response, getCharacterNamesByCode(), getEquipmentNamesByCode(), koreanL10n);
+        Map<Integer, String> traitNamesByCode = hasTraits(response) ? getTraitNamesByCode() : Map.of();
+        return toGameDetailResponse(
+                response,
+                getCharacterNamesByCode(),
+                getEquipmentNamesByCode(),
+                koreanL10n,
+                traitNamesByCode
+        );
     }
 
     public Map<String, Object> getDataTable(String metaType) {
@@ -399,7 +411,8 @@ public class EternalReturnApiClient {
     private UserGamesResponse toUserGamesResponse(
             Map<String, Object> response,
             Map<Integer, String> characterNamesByCode,
-            Map<String, String> koreanL10n
+            Map<String, String> koreanL10n,
+            Map<Integer, String> traitNamesByCode
     ) {
         List<UserGameSummary> games = List.of();
         List<?> userGames = userGamesFrom(response);
@@ -407,7 +420,7 @@ public class EternalReturnApiClient {
             games = userGames.stream()
                     .map(this::asMap)
                     .filter(game -> game != null)
-                    .map(game -> toUserGameSummary(game, characterNamesByCode, koreanL10n))
+                    .map(game -> toUserGameSummary(game, characterNamesByCode, koreanL10n, traitNamesByCode))
                     .toList();
         }
 
@@ -417,11 +430,13 @@ public class EternalReturnApiClient {
     private UserGameSummary toUserGameSummary(
             Map<String, Object> game,
             Map<Integer, String> characterNamesByCode,
-            Map<String, String> koreanL10n
+            Map<String, String> koreanL10n,
+            Map<Integer, String> traitNamesByCode
     ) {
         Integer characterNum = toInteger(game.get("characterNum"));
         Integer tacticalSkillGroupCode = tacticalSkillGroupCode(game);
         Integer bestWeapon = toInteger(game.get("bestWeapon"));
+        List<Integer> secondSubTraits = secondSubTraitCodes(game);
 
         return new UserGameSummary(
                 toLong(game.get("gameId")),
@@ -448,8 +463,10 @@ public class EternalReturnApiClient {
                 toInteger(game.get("bestWeaponLevel")),
                 tacticalSkillGroupCode,
                 tacticalSkillNameFor(tacticalSkillGroupCode, koreanL10n),
-                toTraitSummaries(game, koreanL10n),
-                toInteger(game.get("skinCode"))
+                traitStyleResolver.resolveFromSecondSubTraits(secondSubTraits),
+                toTraitSummaries(game, koreanL10n, traitNamesByCode),
+                toInteger(game.get("skinCode")),
+                routeId(game)
         );
     }
 
@@ -465,13 +482,20 @@ public class EternalReturnApiClient {
             Map<String, Object> response,
             Map<Integer, String> characterNamesByCode,
             Map<Integer, String> equipmentNamesByCode,
-            Map<String, String> koreanL10n
+            Map<String, String> koreanL10n,
+            Map<Integer, String> traitNamesByCode
     ) {
         List<?> userGames = userGamesFrom(response);
         List<GameParticipantSummary> participants = userGames.stream()
                 .map(this::asMap)
                 .filter(game -> game != null)
-                .map(game -> toGameParticipantSummary(game, characterNamesByCode, equipmentNamesByCode, koreanL10n))
+                .map(game -> toGameParticipantSummary(
+                        game,
+                        characterNamesByCode,
+                        equipmentNamesByCode,
+                        koreanL10n,
+                        traitNamesByCode
+                ))
                 .toList();
 
         Map<String, Object> firstGame = firstUserGame(response);
@@ -520,10 +544,12 @@ public class EternalReturnApiClient {
             Map<String, Object> game,
             Map<Integer, String> characterNamesByCode,
             Map<Integer, String> equipmentNamesByCode,
-            Map<String, String> koreanL10n
+            Map<String, String> koreanL10n,
+            Map<Integer, String> traitNamesByCode
     ) {
         Integer characterNum = toInteger(game.get("characterNum"));
         Integer tacticalSkillGroupCode = tacticalSkillGroupCode(game);
+        List<Integer> secondSubTraits = secondSubTraitCodes(game);
 
         return new GameParticipantSummary(
                 valueAsString(game.get("nickname")),
@@ -550,7 +576,24 @@ public class EternalReturnApiClient {
                 toEquipmentSummaries(asMap(game.get("equipment")), asMap(game.get("equipmentGrade")), equipmentNamesByCode),
                 tacticalSkillGroupCode,
                 tacticalSkillNameFor(tacticalSkillGroupCode, koreanL10n),
-                toTraitSummaries(game, koreanL10n)
+                traitStyleResolver.resolveFromSecondSubTraits(secondSubTraits),
+                toTraitSummaries(game, koreanL10n, traitNamesByCode),
+                routeId(game)
+        );
+    }
+
+    private Integer routeId(Map<String, Object> game) {
+        return firstInteger(
+                game.get("routeId"),
+                game.get("routeCode"),
+                game.get("routeNumber"),
+                game.get("routeNo"),
+                game.get("routeIdOfStart"),
+                game.get("routeIdOfEnd"),
+                game.get("recommendRouteId"),
+                game.get("recommendRouteCode"),
+                game.get("recommendedRouteId"),
+                game.get("recommendedRouteCode")
         );
     }
 
@@ -559,6 +602,13 @@ public class EternalReturnApiClient {
                 .map(this::asMap)
                 .filter(game -> game != null)
                 .anyMatch(game -> tacticalSkillGroupCode(game) != null || !traitCodes(game).isEmpty());
+    }
+
+    private boolean hasTraits(Map<String, Object> response) {
+        return userGamesFrom(response).stream()
+                .map(this::asMap)
+                .filter(game -> game != null)
+                .anyMatch(game -> !traitCodes(game).isEmpty());
     }
 
     private Integer tacticalSkillGroupCode(Map<String, Object> game) {
@@ -570,9 +620,17 @@ public class EternalReturnApiClient {
         return toInteger(game.get("tacticalSkillGroup"));
     }
 
-    private List<TraitSummary> toTraitSummaries(Map<String, Object> game, Map<String, String> koreanL10n) {
+    private List<TraitSummary> toTraitSummaries(
+            Map<String, Object> game,
+            Map<String, String> koreanL10n,
+            Map<Integer, String> traitNamesByCode
+    ) {
         return traitCodes(game).stream()
-                .map(traitCode -> new TraitSummary(traitCode, traitNameFor(traitCode, koreanL10n)))
+                .map(traitCode -> new TraitSummary(
+                        traitCode,
+                        traitNameFor(traitCode, koreanL10n, traitNamesByCode),
+                        traitIconCodeResolver.resolve(traitCode)
+                ))
                 .toList();
     }
 
@@ -583,9 +641,13 @@ public class EternalReturnApiClient {
             traitCodes.add(firstCore);
         }
         traitCodes.addAll(toIntegerList(game.get("traitFirstSub")));
-        traitCodes.addAll(toIntegerList(game.get("traitSecondSub")));
+        traitCodes.addAll(secondSubTraitCodes(game));
 
         return traitCodes;
+    }
+
+    private List<Integer> secondSubTraitCodes(Map<String, Object> game) {
+        return toIntegerList(game.get("traitSecondSub"));
     }
 
     private List<Integer> toIntegerList(Object value) {
@@ -640,8 +702,56 @@ public class EternalReturnApiClient {
         return null;
     }
 
-    private String traitNameFor(Integer traitCode, Map<String, String> koreanL10n) {
-        return koreanL10n.get("Trait/Name/" + traitCode);
+    private String traitNameFor(
+            Integer traitCode,
+            Map<String, String> koreanL10n,
+            Map<Integer, String> traitNamesByCode
+    ) {
+        if (traitCode == null) {
+            return null;
+        }
+
+        String resolvedName = firstNonBlankString(
+                traitNameFromL10n(traitCode, koreanL10n),
+                traitNameFromDataTable(traitCode, traitNamesByCode)
+        );
+
+        return traitNameResolver.resolve(traitCode, resolvedName);
+    }
+
+    private String traitNameFromL10n(Integer traitCode, Map<String, String> koreanL10n) {
+        for (Integer candidateCode : traitNameCandidateCodes(traitCode)) {
+            String name = firstNonBlankString(
+                    koreanL10n.get("Trait/Name/" + candidateCode),
+                    koreanL10n.get("TraitGroup/Name/" + candidateCode),
+                    koreanL10n.get("Trait/Group/Name/" + candidateCode)
+            );
+            if (StringUtils.hasText(name)) {
+                return name;
+            }
+        }
+
+        return null;
+    }
+
+    private String traitNameFromDataTable(Integer traitCode, Map<Integer, String> traitNamesByCode) {
+        for (Integer candidateCode : traitNameCandidateCodes(traitCode)) {
+            String name = traitNamesByCode.get(candidateCode);
+            if (StringUtils.hasText(name)) {
+                return name;
+            }
+        }
+
+        return null;
+    }
+
+    private List<Integer> traitNameCandidateCodes(Integer traitCode) {
+        Integer groupCode = traitCode - Math.floorMod(traitCode, 100);
+        if (groupCode.equals(traitCode)) {
+            return List.of(traitCode);
+        }
+
+        return List.of(traitCode, groupCode);
     }
 
     private Map<String, EquipmentSummary> toEquipmentSummaries(
@@ -754,6 +864,21 @@ public class EternalReturnApiClient {
             }
 
             return equipmentNamesByCodeCache;
+        }
+    }
+
+    private Map<Integer, String> getTraitNamesByCode() {
+        Map<Integer, String> cachedTraitNames = traitNamesByCodeCache;
+        if (cachedTraitNames != null) {
+            return cachedTraitNames;
+        }
+
+        synchronized (this) {
+            if (traitNamesByCodeCache == null) {
+                traitNamesByCodeCache = loadTraitNamesByCode();
+            }
+
+            return traitNamesByCodeCache;
         }
     }
 
@@ -884,6 +1009,13 @@ public class EternalReturnApiClient {
         namesByCode.putAll(loadLocalNamesByCode("item-consumable.json"));
         namesByCode.putAll(loadNamesByCode("ItemWeapon"));
         namesByCode.putAll(loadNamesByCode("ItemArmor"));
+
+        return Map.copyOf(namesByCode);
+    }
+
+    private Map<Integer, String> loadTraitNamesByCode() {
+        Map<Integer, String> namesByCode = new java.util.HashMap<>();
+        namesByCode.putAll(loadNamesByCode("Trait"));
 
         return Map.copyOf(namesByCode);
     }

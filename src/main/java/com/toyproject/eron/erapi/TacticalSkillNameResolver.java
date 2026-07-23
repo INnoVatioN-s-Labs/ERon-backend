@@ -24,6 +24,7 @@ public final class TacticalSkillNameResolver {
             Map.entry(500030, "롤링썬더"),
             Map.entry(500120, "블링크"),
             Map.entry(500130, "퀘이크"),
+            Map.entry(500150, "붉은 폭풍"),
             Map.entry(500160, "초월"),
             Map.entry(500180, "무효화"),
             Map.entry(500250, "리펄서 미사일"),

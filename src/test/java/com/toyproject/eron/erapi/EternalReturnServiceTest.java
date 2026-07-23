@@ -22,6 +22,7 @@ import com.toyproject.eron.erapi.dto.TopRankingsResponse;
 import com.toyproject.eron.erapi.dto.UserGameSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
+import com.toyproject.eron.erapi.dto.UserRankResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
 
 class EternalReturnServiceTest {
@@ -95,7 +96,7 @@ class EternalReturnServiceTest {
         when(eternalReturnApiClient.getUserByNickname("testUser"))
                 .thenReturn(new UserSearchResponse("abc-123", "testUser", Map.of()));
         when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
-                .thenReturn(Map.of("userRank", Map.of("rank", 123)));
+                .thenReturn(Map.of("userRank", Map.of("rank", 123, "rankScore", 4567)));
         when(eternalReturnApiClient.getUserGames("abc-123"))
                 .thenReturn(new UserGamesResponse(
                         List.of(
@@ -108,9 +109,100 @@ class EternalReturnServiceTest {
         UserOverviewResponse response = eternalReturnService.getUserOverview("testUser", 39, 3);
 
         assertThat(response.games().games()).hasSize(2);
+        assertThat(response.rank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("tier", "플래티넘 2")
+                .containsEntry("tierName", "플래티넘 2");
         assertThat(response.recentStats().gameCount()).isEqualTo(1);
         assertThat(response.recentStats().top3Count()).isEqualTo(1);
         assertThat(response.recentStats().averageKills()).isEqualTo(5.0);
+    }
+
+    @Test
+    void getUserRankAddsTierWhenRankApiOmitsTier() {
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "userRank", Map.of(
+                                "rank", 123,
+                                "rankScore", 4567,
+                                "mmr", 4321
+                        )
+                ));
+
+        UserRankResponse response = eternalReturnService.getUserRank("abc-123", 39, 3);
+
+        assertThat(response.userRank())
+                .containsEntry("rank", 123)
+                .containsEntry("rankScore", 4567)
+                .containsEntry("mmr", 4321)
+                .containsEntry("tier", "플래티넘 2")
+                .containsEntry("tierName", "플래티넘 2");
+        assertThat(response.raw().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("tier", "플래티넘 2")
+                .containsEntry("tierName", "플래티넘 2");
+    }
+
+    @Test
+    void getUserRankAddsTierFromMmrWhenRankScoreIsMissing() {
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "userRank", Map.of(
+                                "serverCode", 10,
+                                "mmr", 8461,
+                                "rewardServerCode", 10,
+                                "serverRank", 1963,
+                                "nickname", "서른이상원딜금지",
+                                "rank", 1997
+                        )
+                ));
+
+        UserRankResponse response = eternalReturnService.getUserRank("abc-123", 39, 3);
+
+        assertThat(response.userRank())
+                .containsEntry("mmr", 8461)
+                .containsEntry("tier", "미스릴")
+                .containsEntry("tierName", "미스릴");
+    }
+
+    @Test
+    void getUserRankKeepsProvidedTier() {
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "userRank", Map.of(
+                                "rank", 123,
+                                "rankScore", 4567,
+                                "tier", "원본 티어"
+                        )
+                ));
+
+        UserRankResponse response = eternalReturnService.getUserRank("abc-123", 39, 3);
+
+        assertThat(response.userRank())
+                .containsEntry("tier", "원본 티어")
+                .containsEntry("tierName", "원본 티어");
+    }
+
+    @Test
+    void getUserRankFillsBlankTierName() {
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenReturn(Map.of(
+                        "code", 200,
+                        "userRank", Map.of(
+                                "rank", 123,
+                                "rankScore", 4567,
+                                "tierName", ""
+                        )
+                ));
+
+        UserRankResponse response = eternalReturnService.getUserRank("abc-123", 39, 3);
+
+        assertThat(response.userRank())
+                .containsEntry("tier", "플래티넘 2")
+                .containsEntry("tierName", "플래티넘 2");
     }
 
     @Test
@@ -122,13 +214,15 @@ class EternalReturnServiceTest {
                 ),
                 98766L
         );
-        GameDetailResponse detail = gameDetailResponse(98765);
+        GameDetailResponse detail = gameDetailResponseWithRoute(98765, "testUser", 1, 123456);
         when(eternalReturnApiClient.getUserGames("abc-123")).thenReturn(games);
         when(eternalReturnApiClient.getGame(98765)).thenReturn(detail);
 
         UserGamesResponse response = eternalReturnService.getUserGames("abc-123", true, 1);
 
         assertThat(response.games()).hasSize(2);
+        assertThat(response.games().get(0).routeId()).isEqualTo(123456);
+        assertThat(response.games().get(1).routeId()).isNull();
         assertThat(response.detailsByGameId()).containsOnly(Map.entry(98765L, detail));
         verify(eternalReturnApiClient).getUserGames("abc-123");
         verify(eternalReturnApiClient).getGame(98765);
@@ -518,6 +612,54 @@ class EternalReturnServiceTest {
                 8,
                 0,
                 List.of()
+        );
+    }
+
+    private GameDetailResponse gameDetailResponseWithRoute(
+            long gameId,
+            String nickname,
+            int characterNum,
+            int routeId
+    ) {
+        return new GameDetailResponse(
+                gameId,
+                39,
+                3,
+                3,
+                "2026-06-09T13:44:20.020+0900",
+                614,
+                609,
+                8,
+                1,
+                List.of(new com.toyproject.eron.erapi.dto.GameParticipantSummary(
+                        nickname,
+                        1,
+                        3,
+                        characterNum,
+                        "Jackie",
+                        20,
+                        5,
+                        2,
+                        1,
+                        12,
+                        7,
+                        12345,
+                        10000,
+                        5000,
+                        1000,
+                        300,
+                        1,
+                        18,
+                        1620,
+                        0,
+                        609,
+                        Map.of(),
+                        null,
+                        null,
+                        null,
+                        List.of(),
+                        routeId
+                ))
         );
     }
 

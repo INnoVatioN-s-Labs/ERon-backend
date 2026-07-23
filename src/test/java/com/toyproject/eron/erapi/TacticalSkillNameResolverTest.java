@@ -34,6 +34,7 @@ class TacticalSkillNameResolverTest {
         assertThat(resolver.resolve(500030, "전술 스킬 500030")).isEqualTo("롤링썬더");
         assertThat(resolver.resolve(500120, "전술 스킬 500120")).isEqualTo("블링크");
         assertThat(resolver.resolve(500130, "전술 스킬 500130")).isEqualTo("퀘이크");
+        assertThat(resolver.resolve(500150, "전술 스킬 500150")).isEqualTo("붉은 폭풍");
         assertThat(resolver.resolve(500160, "전술 스킬 500160")).isEqualTo("초월");
         assertThat(resolver.resolve(500180, "전술 스킬 500180")).isEqualTo("무효화");
         assertThat(resolver.resolve(500250, "전술 스킬 500250")).isEqualTo("리펄서 미사일");

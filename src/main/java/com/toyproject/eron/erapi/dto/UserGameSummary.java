@@ -29,9 +29,71 @@ public record UserGameSummary(
         Integer bestWeaponLevel,
         Integer tacticalSkillGroupCode,
         String tacticalSkill,
+        String subTraitStyle,
         List<TraitSummary> traits,
-        Integer skinCode
+        Integer skinCode,
+        Integer routeId
 ) {
+
+    public UserGameSummary(
+            Long gameId,
+            String nickname,
+            Integer seasonId,
+            Integer matchingMode,
+            Integer matchingTeamMode,
+            Integer characterNum,
+            String characterName,
+            Integer gameRank,
+            Integer playerKill,
+            Integer playerAssistant,
+            Integer playerDeaths,
+            Integer damageToPlayer,
+            Integer teamKill,
+            Integer rankPoint,
+            Integer mmrBefore,
+            Integer mmrGain,
+            Integer mmrAfter,
+            String startDtm,
+            Integer playTime,
+            Integer bestWeapon,
+            String bestWeaponName,
+            Integer bestWeaponLevel,
+            Integer tacticalSkillGroupCode,
+            String tacticalSkill,
+            List<TraitSummary> traits,
+            Integer skinCode
+    ) {
+        this(
+                gameId,
+                nickname,
+                seasonId,
+                matchingMode,
+                matchingTeamMode,
+                characterNum,
+                characterName,
+                gameRank,
+                playerKill,
+                playerAssistant,
+                playerDeaths,
+                damageToPlayer,
+                teamKill,
+                rankPoint,
+                mmrBefore,
+                mmrGain,
+                mmrAfter,
+                startDtm,
+                playTime,
+                bestWeapon,
+                bestWeaponName,
+                bestWeaponLevel,
+                tacticalSkillGroupCode,
+                tacticalSkill,
+                null,
+                traits,
+                skinCode,
+                null
+        );
+    }
 
     public UserGameSummary(
             Long gameId,
@@ -79,8 +141,52 @@ public record UserGameSummary(
                 null,
                 null,
                 null,
+                null,
                 List.of(),
+                null,
                 null
+        );
+    }
+
+    @JsonProperty("mainTrait")
+    public TraitSummary mainTrait() {
+        if (traits == null || traits.isEmpty()) {
+            return null;
+        }
+
+        return traits.get(0);
+    }
+
+    public UserGameSummary withRouteId(Integer routeId) {
+        return new UserGameSummary(
+                gameId,
+                nickname,
+                seasonId,
+                matchingMode,
+                matchingTeamMode,
+                characterNum,
+                characterName,
+                gameRank,
+                playerKill,
+                playerAssistant,
+                playerDeaths,
+                damageToPlayer,
+                teamKill,
+                rankPoint,
+                mmrBefore,
+                mmrGain,
+                mmrAfter,
+                startDtm,
+                playTime,
+                bestWeapon,
+                bestWeaponName,
+                bestWeaponLevel,
+                tacticalSkillGroupCode,
+                tacticalSkill,
+                subTraitStyle,
+                traits,
+                skinCode,
+                routeId
         );
     }
 

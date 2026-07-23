@@ -31,8 +31,127 @@ public record GameParticipantSummary(
         Map<String, EquipmentSummary> equipment,
         Integer tacticalSkillGroupCode,
         String tacticalSkill,
-        List<TraitSummary> traits
+        String subTraitStyle,
+        List<TraitSummary> traits,
+        Integer routeId
 ) {
+
+    public GameParticipantSummary(
+            String nickname,
+            Integer teamNumber,
+            Integer gameRank,
+            Integer characterNum,
+            String characterName,
+            Integer characterLevel,
+            Integer playerKill,
+            Integer playerAssistant,
+            Integer playerDeaths,
+            Integer monsterKill,
+            Integer teamKill,
+            Integer damageToPlayer,
+            Integer damageFromPlayer,
+            Integer damageToMonster,
+            Integer healAmount,
+            Integer protectAbsorb,
+            Integer bestWeapon,
+            Integer bestWeaponLevel,
+            Integer rankPoint,
+            Integer victory,
+            Integer playTime,
+            Map<String, EquipmentSummary> equipment,
+            Integer tacticalSkillGroupCode,
+            String tacticalSkill,
+            List<TraitSummary> traits
+    ) {
+        this(
+                nickname,
+                teamNumber,
+                gameRank,
+                characterNum,
+                characterName,
+                characterLevel,
+                playerKill,
+                playerAssistant,
+                playerDeaths,
+                monsterKill,
+                teamKill,
+                damageToPlayer,
+                damageFromPlayer,
+                damageToMonster,
+                healAmount,
+                protectAbsorb,
+                bestWeapon,
+                bestWeaponLevel,
+                rankPoint,
+                victory,
+                playTime,
+                equipment,
+                tacticalSkillGroupCode,
+                tacticalSkill,
+                null,
+                traits,
+                null
+        );
+    }
+
+    public GameParticipantSummary(
+            String nickname,
+            Integer teamNumber,
+            Integer gameRank,
+            Integer characterNum,
+            String characterName,
+            Integer characterLevel,
+            Integer playerKill,
+            Integer playerAssistant,
+            Integer playerDeaths,
+            Integer monsterKill,
+            Integer teamKill,
+            Integer damageToPlayer,
+            Integer damageFromPlayer,
+            Integer damageToMonster,
+            Integer healAmount,
+            Integer protectAbsorb,
+            Integer bestWeapon,
+            Integer bestWeaponLevel,
+            Integer rankPoint,
+            Integer victory,
+            Integer playTime,
+            Map<String, EquipmentSummary> equipment,
+            Integer tacticalSkillGroupCode,
+            String tacticalSkill,
+            String subTraitStyle,
+            List<TraitSummary> traits
+    ) {
+        this(
+                nickname,
+                teamNumber,
+                gameRank,
+                characterNum,
+                characterName,
+                characterLevel,
+                playerKill,
+                playerAssistant,
+                playerDeaths,
+                monsterKill,
+                teamKill,
+                damageToPlayer,
+                damageFromPlayer,
+                damageToMonster,
+                healAmount,
+                protectAbsorb,
+                bestWeapon,
+                bestWeaponLevel,
+                rankPoint,
+                victory,
+                playTime,
+                equipment,
+                tacticalSkillGroupCode,
+                tacticalSkill,
+                subTraitStyle,
+                traits,
+                null
+        );
+    }
 
     public GameParticipantSummary(
             String nickname,
@@ -83,8 +202,19 @@ public record GameParticipantSummary(
                 equipment,
                 null,
                 null,
-                List.of()
+                null,
+                List.of(),
+                null
         );
+    }
+
+    @JsonProperty("mainTrait")
+    public TraitSummary mainTrait() {
+        if (traits == null || traits.isEmpty()) {
+            return null;
+        }
+
+        return traits.get(0);
     }
 
     @JsonProperty("equipmentList")
