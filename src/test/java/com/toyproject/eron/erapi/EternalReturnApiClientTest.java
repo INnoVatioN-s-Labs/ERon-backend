@@ -24,6 +24,7 @@ import com.sun.net.httpserver.HttpServer;
 import com.toyproject.eron.erapi.dto.EquipmentSummary;
 import com.toyproject.eron.erapi.dto.GameDetailResponse;
 import com.toyproject.eron.erapi.dto.SkinMetadata;
+import com.toyproject.eron.erapi.dto.TraitSummary;
 import com.toyproject.eron.erapi.dto.UserGamesResponse;
 import com.toyproject.eron.erapi.dto.UserOverviewResponse;
 import com.toyproject.eron.erapi.dto.UserSearchResponse;
@@ -139,6 +140,7 @@ class EternalReturnApiClientTest {
                           "gameRank": 3,
                           "bestWeapon": 7,
                           "bestWeaponLevel": 18,
+                          "routeIdOfStart": 123456,
                           "tacticalSkillGroupCode": 30,
                           "traitFirstCore": 7000401,
                           "traitFirstSub": [7011001, 7010311],
@@ -199,8 +201,11 @@ class EternalReturnApiClientTest {
                     assertThat(game.bestWeapon()).isEqualTo(7);
                     assertThat(game.bestWeaponName()).isEqualTo("활");
                     assertThat(game.bestWeaponLevel()).isEqualTo(18);
+                    assertThat(game.routeId()).isEqualTo(123456);
                     assertThat(game.tacticalSkillGroupCode()).isEqualTo(30);
                     assertThat(game.tacticalSkill()).isEqualTo("블링크");
+                    assertThat(game.mainTrait()).isEqualTo(new TraitSummary(7000401, "흡혈마"));
+                    assertThat(game.subTraitStyle()).isEqualTo("저항");
                     assertThat(game.traits())
                             .extracting(trait -> trait.traitName())
                             .containsExactly("흡혈마", "갈증", "철갑탄", "대담", "대담");
@@ -448,6 +453,7 @@ class EternalReturnApiClientTest {
                           "protectAbsorb": 3171,
                           "bestWeapon": 7,
                           "bestWeaponLevel": 18,
+                          "routeIdOfStart": 123456,
                           "tacticalSkillGroupCode": 30,
                           "traitFirstCore": 7000401,
                           "traitFirstSub": [7011001, 7010311],
@@ -545,8 +551,11 @@ class EternalReturnApiClientTest {
                     assertThat(participant.protectAbsorb()).isEqualTo(3171);
                     assertThat(participant.bestWeapon()).isEqualTo(7);
                     assertThat(participant.bestWeaponLevel()).isEqualTo(18);
+                    assertThat(participant.routeId()).isEqualTo(123456);
                     assertThat(participant.tacticalSkillGroupCode()).isEqualTo(30);
                     assertThat(participant.tacticalSkill()).isEqualTo("블링크");
+                    assertThat(participant.mainTrait()).isEqualTo(new TraitSummary(7000401, "흡혈마"));
+                    assertThat(participant.subTraitStyle()).isEqualTo("저항");
                     assertThat(participant.traits())
                             .extracting(trait -> trait.traitName())
                             .containsExactly("흡혈마", "갈증", "철갑탄", "대담", "대담");

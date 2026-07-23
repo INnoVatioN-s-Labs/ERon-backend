@@ -222,14 +222,18 @@ class EternalReturnControllerTest {
                         Map.of(
                                 "rank", 123,
                                 "rankScore", 4567,
-                                "mmr", 4321
+                                "mmr", 4321,
+                                "tier", "플래티넘 2",
+                                "tierName", "플래티넘 2"
                         ),
                         Map.of(
                                 "code", 200,
                                 "userRank", Map.of(
                                         "rank", 123,
                                         "rankScore", 4567,
-                                        "mmr", 4321
+                                        "mmr", 4321,
+                                        "tier", "플래티넘 2",
+                                        "tierName", "플래티넘 2"
                                 )
                         )
                 ));
@@ -244,6 +248,8 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.userRank.rank").value(123))
                 .andExpect(jsonPath("$.userRank.rankScore").value(4567))
                 .andExpect(jsonPath("$.userRank.mmr").value(4321))
+                .andExpect(jsonPath("$.userRank.tier").value("플래티넘 2"))
+                .andExpect(jsonPath("$.userRank.tierName").value("플래티넘 2"))
                 .andExpect(jsonPath("$.raw.code").value(200));
     }
 
@@ -729,6 +735,7 @@ class EternalReturnControllerTest {
                                         Map.of("0", new EquipmentSummary(114702, "Longbow", 6)),
                                         30,
                                         "블링크",
+                                        "저항",
                                         List.of(new TraitSummary(7000401, "흡혈마"))
                                 ),
                                 new GameParticipantSummary(
@@ -786,8 +793,13 @@ class EternalReturnControllerTest {
                 .andExpect(jsonPath("$.participants[0].equipmentList[0].itemGrade").value(6))
                 .andExpect(jsonPath("$.participants[0].tacticalSkillGroupCode").value(30))
                 .andExpect(jsonPath("$.participants[0].tacticalSkill").value("블링크"))
+                .andExpect(jsonPath("$.participants[0].mainTrait.traitCode").value(7000401))
+                .andExpect(jsonPath("$.participants[0].mainTrait.traitName").value("흡혈마"))
+                .andExpect(jsonPath("$.participants[0].mainTrait.traitIconCode").value(7000401))
+                .andExpect(jsonPath("$.participants[0].subTraitStyle").value("저항"))
                 .andExpect(jsonPath("$.participants[0].traits[0].traitCode").value(7000401))
                 .andExpect(jsonPath("$.participants[0].traits[0].traitName").value("흡혈마"))
+                .andExpect(jsonPath("$.participants[0].traits[0].traitIconCode").value(7000401))
                 .andExpect(jsonPath("$.participants[1].nickname").value("runnerUp"))
                 .andExpect(jsonPath("$.participants[1].victory").value(0))
                 .andExpect(jsonPath("$.raw").doesNotExist())
