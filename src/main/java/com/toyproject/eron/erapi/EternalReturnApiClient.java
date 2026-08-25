@@ -46,6 +46,7 @@ public class EternalReturnApiClient {
             };
     private static final Pattern LOCAL_NAME_ENTRY_PATTERN =
             Pattern.compile("\"code\"\\s*:\\s*(\\d+).*?\"name\"\\s*:\\s*\"([^\"]+)\"");
+    private static final int RANKED_MATCHING_MODE = 3;
     // 공식 l10n 텍스트에서 실험체명 항목의 키 접두사: "Character/Name/{code}"
     private static final String L10N_CHARACTER_NAME_PREFIX = "Character/Name/";
     private static final Map<Integer, List<Integer>> TACTICAL_SKILL_GROUP_NAME_CODES = Map.ofEntries(
@@ -170,7 +171,7 @@ public class EternalReturnApiClient {
     public UserOverviewResponse getUserOverview(String nickname, int seasonId, int matchingTeamMode) {
         UserSearchResponse user = getUserByNickname(nickname);
         Map<String, Object> rank = getUserRank(user.userId(), seasonId, matchingTeamMode);
-        Map<String, Object> stats = getUserStats(user.userId(), seasonId);
+        Map<String, Object> stats = getUserStats(user.userId(), seasonId, RANKED_MATCHING_MODE);
         UserGamesResponse games = getUserGames(user.userId());
 
         return new UserOverviewResponse(
@@ -183,7 +184,16 @@ public class EternalReturnApiClient {
     }
 
     public Map<String, Object> getUserStats(String userId, int seasonId) {
-        return getJson("/user/stats/uid/{userId}/{seasonId}", userId, seasonId);
+        return getUserStats(userId, seasonId, RANKED_MATCHING_MODE);
+    }
+
+    public Map<String, Object> getUserStats(String userId, int seasonId, int matchingMode) {
+        return getJson(
+                apiVersionUrl("v2", "/user/stats/uid/{userId}/{seasonId}/{matchingMode}"),
+                userId,
+                seasonId,
+                matchingMode
+        );
     }
 
     public UserGamesResponse getUserGames(String userId) {
@@ -370,6 +380,18 @@ public class EternalReturnApiClient {
         } catch (ResourceAccessException exception) {
             throw timeoutException();
         }
+    }
+
+    private String apiVersionUrl(String apiVersion, String path) {
+        String normalizedPath = path.startsWith("/") ? path : "/" + path;
+        String baseUrl = properties.getBaseUrl();
+        if (!StringUtils.hasText(baseUrl)) {
+            return "/" + apiVersion + normalizedPath;
+        }
+
+        String normalizedBaseUrl = baseUrl.replaceAll("/+$", "");
+        String rootBaseUrl = normalizedBaseUrl.replaceFirst("/v\\d+$", "");
+        return rootBaseUrl + "/" + apiVersion + normalizedPath;
     }
 
     private EternalReturnApiException toApiException(HttpStatusCodeException exception) {

@@ -36,8 +36,12 @@ public class EternalReturnService {
 
     private static final Logger log = LoggerFactory.getLogger(EternalReturnService.class);
     private static final int RANKING_STATS_ENRICH_LIMIT = 10;
+    private static final int RANKED_MATCHING_MODE = 3;
+    private static final int OVERVIEW_RANKED_STATS_PAGE_LIMIT = 5;
+    private static final int OVERVIEW_RANKED_STATS_GAME_LIMIT = 20;
     private static final int USER_GAMES_DETAIL_LIMIT_MAX = 10;
-    private static final int DEFAULT_CURRENT_SEASON_ID = 39;
+    private static final int DEFAULT_CURRENT_SEASON_ID = 41;
+    private static final int DEFAULT_PREVIOUS_SEASON_ID = 39;
     private static final int DEFAULT_CURRENT_MATCHING_TEAM_MODE = 3;
     private static final String DEFAULT_CURRENT_META_TIER = "";
     private static final int DEFAULT_CURRENT_META_RANKING_SAMPLE_LIMIT = 1000;
@@ -49,11 +53,14 @@ public class EternalReturnService {
     private final Duration userGamesCacheTtl;
     private final Clock clock;
     private final int currentSeasonId;
+    private final int previousSeasonId;
     private final int currentMatchingTeamMode;
     private final String currentMetaTier;
     private final int currentMetaRankingSampleLimit;
     private final Cache<String, CacheEntry<UserGamesResponse>> userGamesCache;
     private final Cache<Long, CacheEntry<GameDetailResponse>> gameDetailCache;
+    private final Cache<String, CacheEntry<Map<String, Object>>> userRankCache;
+    private final Cache<String, CacheEntry<Map<String, Object>>> userStatsCache;
     private final Cache<String, CacheEntry<Map<String, Object>>> topRankingsCache;
     private final Cache<String, CacheEntry<UserSearchResponse>> userSearchCache;
     private final Cache<String, CacheEntry<Map<String, Object>>> todayCharacterCache;
@@ -67,6 +74,7 @@ public class EternalReturnService {
                 Clock.systemUTC(),
                 properties.getCacheMaximumSize(),
                 properties.getCurrentSeasonId(),
+                properties.getPreviousSeasonId(),
                 properties.getCurrentMatchingTeamMode(),
                 properties.getCurrentMetaTier(),
                 properties.getCurrentMetaRankingSampleLimit()
@@ -80,6 +88,7 @@ public class EternalReturnService {
                 clock,
                 10_000,
                 DEFAULT_CURRENT_SEASON_ID,
+                DEFAULT_PREVIOUS_SEASON_ID,
                 DEFAULT_CURRENT_MATCHING_TEAM_MODE,
                 DEFAULT_CURRENT_META_TIER,
                 DEFAULT_CURRENT_META_RANKING_SAMPLE_LIMIT
@@ -92,6 +101,7 @@ public class EternalReturnService {
             Clock clock,
             long cacheMaximumSize,
             int currentSeasonId,
+            int previousSeasonId,
             int currentMatchingTeamMode,
             String currentMetaTier,
             int currentMetaRankingSampleLimit
@@ -100,12 +110,15 @@ public class EternalReturnService {
         this.userGamesCacheTtl = userGamesCacheTtl;
         this.clock = clock;
         this.currentSeasonId = currentSeasonId;
+        this.previousSeasonId = previousSeasonId;
         this.currentMatchingTeamMode = currentMatchingTeamMode;
         this.currentMetaTier = currentMetaTier;
         this.currentMetaRankingSampleLimit = currentMetaRankingSampleLimit;
         long maximumSize = Math.max(1, cacheMaximumSize);
         this.userGamesCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
         this.gameDetailCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
+        this.userRankCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
+        this.userStatsCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
         this.topRankingsCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
         this.userSearchCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
         this.todayCharacterCache = Caffeine.newBuilder().maximumSize(maximumSize).build();
@@ -117,18 +130,32 @@ public class EternalReturnService {
 
     public UserOverviewResponse getUserOverview(String nickname, int seasonId, int matchingTeamMode) {
         UserSearchResponse user = getCachedUserByNickname(nickname);
-        Map<String, Object> rank = enrichRankResponse(eternalReturnApiClient.getUserRank(
-                user.userId(),
-                seasonId,
-                matchingTeamMode
-        ));
-        UserStatsResponse seasonStats = getUserStats(user.userId(), seasonId);
+        int rankSeasonId = currentSeasonId;
+        UserStatsResponse seasonStats = getUserStatsOrEmpty(user.userId(), rankSeasonId, RANKED_MATCHING_MODE);
+        Map<String, Object> rank = rankFromStatsOrEmpty(seasonStats, matchingTeamMode);
+        Map<String, Object> previousRank = previousRank(user.userId(), matchingTeamMode);
         UserGamesResponse games = getUserGames(user.userId());
-        return new UserOverviewResponse(user, rank, seasonStats, games, UserRecentStatsResponse.from(rankedOnly(games)));
+        UserGamesResponse currentSeasonRankedGames = currentSeasonRankedGames(user.userId(), games, rankSeasonId);
+        return new UserOverviewResponse(
+                user,
+                rankSeasonId,
+                previousSeasonId,
+                rank,
+                rank,
+                previousRank,
+                seasonStats,
+                seasonSummary(seasonStats, matchingTeamMode),
+                games,
+                UserRecentStatsResponse.from(currentSeasonRankedGames)
+        );
     }
 
     public UserStatsResponse getUserStats(String userId, int seasonId) {
-        Map<String, Object> response = eternalReturnApiClient.getUserStats(userId, seasonId);
+        return getUserStats(userId, seasonId, RANKED_MATCHING_MODE);
+    }
+
+    public UserStatsResponse getUserStats(String userId, int seasonId, int matchingMode) {
+        Map<String, Object> response = getCachedUserStats(userId, seasonId, matchingMode);
         return new UserStatsResponse(userId, seasonId, asListOfMaps(response.get("userStats")), response);
     }
 
@@ -184,13 +211,150 @@ public class EternalReturnService {
     }
 
     public UserRankResponse getUserRank(String userId, int seasonId, int matchingTeamMode) {
-        Map<String, Object> enrichedResponse = enrichRankResponse(eternalReturnApiClient.getUserRank(
+        Map<String, Object> enrichedResponse = enrichRankResponse(getCachedUserRank(
                 userId,
                 seasonId,
                 matchingTeamMode
-        ));
+        ), seasonId, matchingTeamMode);
         Map<String, Object> userRank = asMap(enrichedResponse.get("userRank"));
         return new UserRankResponse(userId, seasonId, matchingTeamMode, userRank, enrichedResponse);
+    }
+
+    private Map<String, Object> rankOrEmpty(String userId, int seasonId, int matchingTeamMode, String label) {
+        try {
+            Map<String, Object> rank = enrichRankResponse(
+                    getCachedUserRank(userId, seasonId, matchingTeamMode),
+                    seasonId,
+                    matchingTeamMode
+            );
+            if (!hasRank(asMap(rank.get("userRank")))) {
+                return emptyRankResponse(seasonId, matchingTeamMode);
+            }
+            return rank;
+        } catch (EternalReturnApiException exception) {
+            log.debug(
+                    "{} season rank is unavailable. userId={}, seasonId={}, matchingTeamMode={}, status={}",
+                    label,
+                    userId,
+                    seasonId,
+                    matchingTeamMode,
+                    exception.getStatus()
+            );
+            return emptyRankResponse(seasonId, matchingTeamMode);
+        }
+    }
+
+    private UserStatsResponse getUserStatsOrEmpty(String userId, int seasonId, int matchingMode) {
+        try {
+            return getUserStats(userId, seasonId, matchingMode);
+        } catch (EternalReturnApiException exception) {
+            log.debug(
+                    "Season stats are unavailable. userId={}, seasonId={}, matchingMode={}, status={}",
+                    userId,
+                    seasonId,
+                    matchingMode,
+                    exception.getStatus()
+            );
+            return new UserStatsResponse(
+                    userId,
+                    seasonId,
+                    List.of(),
+                    Map.of(
+                            "seasonId", seasonId,
+                            "matchingMode", matchingMode,
+                            "userStats", List.of()
+                    )
+            );
+        }
+    }
+
+    private Map<String, Object> rankFromStatsOrEmpty(UserStatsResponse seasonStats, int matchingTeamMode) {
+        return seasonStats.userStats()
+                .stream()
+                .filter(this::isRankedStat)
+                .filter(stats -> isMatchingTeamStat(stats, matchingTeamMode))
+                .findFirst()
+                .map(stats -> rankFromStats(stats, seasonStats.seasonId(), matchingTeamMode))
+                .orElseGet(() -> emptyRankResponse(seasonStats.seasonId(), matchingTeamMode));
+    }
+
+    private Map<String, Object> seasonSummary(UserStatsResponse seasonStats, int matchingTeamMode) {
+        return seasonStats.userStats()
+                .stream()
+                .filter(this::isRankedStat)
+                .filter(stats -> isMatchingTeamStat(stats, matchingTeamMode))
+                .findFirst()
+                .map(this::seasonSummary)
+                .orElseGet(Map::of);
+    }
+
+    private Map<String, Object> seasonSummary(Map<String, Object> stats) {
+        Map<String, Object> summary = new LinkedHashMap<>();
+        summary.put("gameCount", firstNumber(stats, "totalGames", "gameCount"));
+        summary.put("averageTeamKill", firstNumber(stats, "averageTeamKill", "averageTk", "avgTeamKill"));
+        summary.put("winRate", firstNumber(stats, "winRate"));
+        summary.put("averageKills", firstNumber(stats, "averageKills", "averageKill", "avgKills"));
+        summary.put("top2Rate", firstNumber(stats, "top2Rate", "top2", "top2Ratio"));
+        summary.put("top3Rate", firstNumber(stats, "top3Rate", "top3", "top3Ratio"));
+        summary.put("averageDamageToPlayer", firstNumber(stats, "averageDamageToPlayer", "averageDamage", "avgDamage"));
+        summary.put("averageAssists", firstNumber(stats, "averageAssists", "averageAssist", "avgAssists"));
+        summary.put("averageRank", firstNumber(stats, "averageRank", "avgRank"));
+        summary.put("averageMonsterKill", firstNumber(stats, "averageMonsterKill", "averageAnimalKill", "avgMonsterKill"));
+        summary.put("averageCredit", firstNumber(stats, "averageCredit", "avgCredit", "averageGainCredit"));
+        summary.put("averageVision", firstNumber(stats, "averageVision", "avgVision", "averageSight"));
+        return summary;
+    }
+
+    private boolean isRankedStat(Map<String, Object> stats) {
+        Integer matchingMode = toInteger(stats.get("matchingMode"));
+        return matchingMode == null || Integer.valueOf(RANKED_MATCHING_MODE).equals(matchingMode);
+    }
+
+    private boolean isMatchingTeamStat(Map<String, Object> stats, int matchingTeamMode) {
+        Integer statMatchingTeamMode = toInteger(stats.get("matchingTeamMode"));
+        return statMatchingTeamMode == null || Integer.valueOf(matchingTeamMode).equals(statMatchingTeamMode);
+    }
+
+    private Map<String, Object> rankFromStats(Map<String, Object> stats, int seasonId, int matchingTeamMode) {
+        Map<String, Object> userRank = new LinkedHashMap<>();
+        userRank.put("nickname", stats.get("nickname"));
+        userRank.put("rank", stats.get("rank"));
+        userRank.put("rankSize", stats.get("rankSize"));
+        userRank.put("rankPercent", stats.get("rankPercent"));
+        userRank.put("mmr", stats.get("mmr"));
+        userRank.put("seasonId", seasonId);
+        userRank.put("matchingMode", RANKED_MATCHING_MODE);
+        userRank.put("matchingTeamMode", matchingTeamMode);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("seasonId", seasonId);
+        response.put("matchingMode", RANKED_MATCHING_MODE);
+        response.put("matchingTeamMode", matchingTeamMode);
+        response.put("userRank", enrichRankTier(userRank, seasonId, matchingTeamMode));
+        return response;
+    }
+
+    private Map<String, Object> previousRank(String userId, int matchingTeamMode) {
+        if (previousSeasonId < 1) {
+            return emptyRankResponse(previousSeasonId, matchingTeamMode);
+        }
+
+        return rankOrEmpty(userId, previousSeasonId, matchingTeamMode, "Previous");
+    }
+
+    private boolean hasRank(Map<String, Object> userRank) {
+        return isPositiveInteger(userRank.get("rank"))
+                || isPositiveInteger(userRank.get("serverRank"))
+                || isPositiveInteger(userRank.get("serverCode"))
+                || isPositiveInteger(userRank.get("rewardServerCode"))
+                || isPositiveInteger(userRank.get("rankPoint"))
+                || isPositiveInteger(userRank.get("rankScore"))
+                || isPositiveInteger(userRank.get("mmr"));
+    }
+
+    private boolean isPositiveInteger(Object value) {
+        Integer integer = toInteger(value);
+        return integer != null && integer > 0;
     }
 
     public TopRankingsResponse getTopRankings(int seasonId, int matchingTeamMode) {
@@ -313,6 +477,42 @@ public class EternalReturnService {
 
         Map<String, Object> response = eternalReturnApiClient.getTopRankings(seasonId, matchingTeamMode);
         topRankingsCache.put(cacheKey, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
+        return response;
+    }
+
+    private Map<String, Object> getCachedUserRank(String userId, int seasonId, int matchingTeamMode) {
+        if (userGamesCacheTtl.isZero() || userGamesCacheTtl.isNegative()) {
+            return eternalReturnApiClient.getUserRank(userId, seasonId, matchingTeamMode);
+        }
+
+        String cacheKey = userId + ":" + seasonId + ":" + matchingTeamMode;
+        Instant now = clock.instant();
+        CacheEntry<Map<String, Object>> cached = userRankCache.getIfPresent(cacheKey);
+        if (isAlive(cached, now)) {
+            return cached.value();
+        }
+        userRankCache.invalidate(cacheKey);
+
+        Map<String, Object> response = eternalReturnApiClient.getUserRank(userId, seasonId, matchingTeamMode);
+        userRankCache.put(cacheKey, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
+        return response;
+    }
+
+    private Map<String, Object> getCachedUserStats(String userId, int seasonId, int matchingMode) {
+        if (userGamesCacheTtl.isZero() || userGamesCacheTtl.isNegative()) {
+            return eternalReturnApiClient.getUserStats(userId, seasonId, matchingMode);
+        }
+
+        String cacheKey = userId + ":" + seasonId + ":" + matchingMode;
+        Instant now = clock.instant();
+        CacheEntry<Map<String, Object>> cached = userStatsCache.getIfPresent(cacheKey);
+        if (isAlive(cached, now)) {
+            return cached.value();
+        }
+        userStatsCache.invalidate(cacheKey);
+
+        Map<String, Object> response = eternalReturnApiClient.getUserStats(userId, seasonId, matchingMode);
+        userStatsCache.put(cacheKey, new CacheEntry<>(response, now.plus(userGamesCacheTtl)));
         return response;
     }
 
@@ -504,8 +704,56 @@ public class EternalReturnService {
         return new UserGamesResponse(rankedGames, games.next());
     }
 
+    private UserGamesResponse currentSeasonRankedGames(String userId, UserGamesResponse firstPage, int seasonId) {
+        List<UserGameSummary> rankedGames = new java.util.ArrayList<>();
+        addCurrentSeasonRankedGames(rankedGames, firstPage, seasonId);
+
+        Long next = firstPage.next();
+        int pageCount = 1;
+        while (next != null
+                && pageCount < OVERVIEW_RANKED_STATS_PAGE_LIMIT
+                && rankedGames.size() < OVERVIEW_RANKED_STATS_GAME_LIMIT) {
+            UserGamesResponse page;
+            try {
+                page = getUserGames(userId, next);
+            } catch (EternalReturnApiException exception) {
+                log.debug(
+                        "Additional current season ranked games are unavailable. userId={}, next={}, status={}",
+                        userId,
+                        next,
+                        exception.getStatus()
+                );
+                break;
+            }
+            addCurrentSeasonRankedGames(rankedGames, page, seasonId);
+            next = page.next();
+            pageCount++;
+        }
+
+        if (rankedGames.size() > OVERVIEW_RANKED_STATS_GAME_LIMIT) {
+            rankedGames = rankedGames.subList(0, OVERVIEW_RANKED_STATS_GAME_LIMIT);
+        }
+
+        return new UserGamesResponse(rankedGames, next);
+    }
+
+    private void addCurrentSeasonRankedGames(
+            List<UserGameSummary> rankedGames,
+            UserGamesResponse page,
+            int seasonId
+    ) {
+        page.games()
+                .stream()
+                .filter(game -> isCurrentSeasonRankedGame(game, seasonId))
+                .forEach(rankedGames::add);
+    }
+
     private boolean isRankedGame(UserGameSummary game) {
         return game.seasonId() != null && game.seasonId() > 0;
+    }
+
+    private boolean isCurrentSeasonRankedGame(UserGameSummary game, int seasonId) {
+        return Integer.valueOf(seasonId).equals(game.seasonId());
     }
 
     private String userGamesCacheKey(String userId, Long next) {
@@ -575,26 +823,41 @@ public class EternalReturnService {
         return null;
     }
 
-    private Map<String, Object> enrichRankResponse(Map<String, Object> response) {
+    private Map<String, Object> enrichRankResponse(Map<String, Object> response, int seasonId, int matchingTeamMode) {
         Map<String, Object> enrichedResponse = new LinkedHashMap<>(response);
-        enrichedResponse.put("userRank", enrichRankTier(asMap(response.get("userRank"))));
+        enrichedResponse.put("seasonId", seasonId);
+        enrichedResponse.put("matchingTeamMode", matchingTeamMode);
+        enrichedResponse.put("userRank", enrichRankTier(asMap(response.get("userRank")), seasonId, matchingTeamMode));
         return enrichedResponse;
     }
 
+    private Map<String, Object> emptyRankResponse(int seasonId, int matchingTeamMode) {
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("seasonId", seasonId);
+        response.put("matchingTeamMode", matchingTeamMode);
+        response.put("userRank", Map.of());
+        return response;
+    }
+
     private Map<String, Object> enrichRankTier(Map<String, Object> userRank) {
+        return enrichRankTier(userRank, null, null);
+    }
+
+    private Map<String, Object> enrichRankTier(Map<String, Object> userRank, Integer seasonId, Integer matchingTeamMode) {
         if (userRank.isEmpty()) {
             return userRank;
         }
 
         Map<String, Object> enrichedRank = new LinkedHashMap<>(userRank);
-        if (hasText(enrichedRank.get("tier")) && hasText(enrichedRank.get("tierName"))) {
-            return enrichedRank;
-        }
+        putIfAbsent(enrichedRank, "seasonId", seasonId);
+        putIfAbsent(enrichedRank, "matchingTeamMode", matchingTeamMode);
+        Integer rankPoint = firstInteger(enrichedRank.get("rankPoint"), enrichedRank.get("rankScore"), enrichedRank.get("mmr"));
+        putIfAbsent(enrichedRank, "rankPoint", rankPoint);
 
         String tier = firstText(enrichedRank.get("tier"), enrichedRank.get("tierName"));
         if (tier == null) {
             tier = rankTierResolver.resolve(
-                    firstInteger(enrichedRank.get("rankScore"), enrichedRank.get("mmr")),
+                    rankPoint,
                     toInteger(enrichedRank.get("rank"))
             );
         }
@@ -602,8 +865,22 @@ public class EternalReturnService {
             putIfBlank(enrichedRank, "tier", tier);
             putIfBlank(enrichedRank, "tierName", tier);
         }
+        enrichedRank.putIfAbsent("tierGrade", tierGrade(tier));
 
         return enrichedRank;
+    }
+
+    private Integer tierGrade(String tier) {
+        if (tier == null || tier.isBlank()) {
+            return null;
+        }
+
+        char lastCharacter = tier.charAt(tier.length() - 1);
+        if (!Character.isDigit(lastCharacter)) {
+            return null;
+        }
+
+        return Character.digit(lastCharacter, 10);
     }
 
     private boolean hasText(Object value) {
@@ -631,8 +908,40 @@ public class EternalReturnService {
         return null;
     }
 
+    private Number firstNumber(Map<String, Object> map, String... keys) {
+        for (String key : keys) {
+            Number number = toNumber(map.get(key));
+            if (number != null) {
+                return number;
+            }
+        }
+
+        return null;
+    }
+
+    private Number toNumber(Object value) {
+        if (value instanceof Number number) {
+            return number;
+        }
+        if (value instanceof String text && !text.isBlank()) {
+            try {
+                return text.contains(".") ? Double.parseDouble(text) : Integer.parseInt(text);
+            } catch (NumberFormatException exception) {
+                return null;
+            }
+        }
+
+        return null;
+    }
+
     private void putIfBlank(Map<String, Object> map, String key, String value) {
         if (!hasText(map.get(key))) {
+            map.put(key, value);
+        }
+    }
+
+    private void putIfAbsent(Map<String, Object> map, String key, Object value) {
+        if (value != null && !map.containsKey(key)) {
             map.put(key, value);
         }
     }

@@ -105,7 +105,7 @@ class EternalReturnApiClientTest {
 
     @Test
     void getUserStatsMapsHttpErrorResponse() {
-        server.createContext("/user/stats/uid/abc-123/1", exchange -> writeJson(exchange, 429, """
+        server.createContext("/v2/user/stats/uid/abc-123/1/3", exchange -> writeJson(exchange, 429, """
                 {
                   "code": 429,
                   "message": "Too Many Requests"
@@ -877,7 +877,7 @@ class EternalReturnApiClientTest {
                     }
                     """);
         });
-        server.createContext("/user/stats/uid/abc-123/28", exchange -> {
+        server.createContext("/v2/user/stats/uid/abc-123/28/3", exchange -> {
             capturedRequests.add(CapturedRequest.from(exchange));
             writeJson(exchange, 200, """
                     {
@@ -964,7 +964,7 @@ class EternalReturnApiClientTest {
                 .containsExactly(
                         "/user/nickname",
                         "/rank/uid/abc-123/28/1",
-                        "/user/stats/uid/abc-123/28",
+                        "/v2/user/stats/uid/abc-123/28/3",
                         "/user/games/uid/abc-123",
                         "/l10n/Korean",
                         "/l10n-ko.txt"

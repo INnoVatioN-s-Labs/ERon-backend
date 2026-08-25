@@ -56,9 +56,10 @@ public class EternalReturnController {
     @GetMapping("/users/{userId}/stats")
     public UserStatsResponse getUserStats(
             @PathVariable @NotBlank String userId,
-            @RequestParam @PositiveOrZero int seasonId
+            @RequestParam @PositiveOrZero int seasonId,
+            @RequestParam(defaultValue = "3") @Positive int matchingMode
     ) {
-        return eternalReturnService.getUserStats(userId, seasonId);
+        return eternalReturnService.getUserStats(userId, seasonId, matchingMode);
     }
 
     @GetMapping("/users/{userId}/games")

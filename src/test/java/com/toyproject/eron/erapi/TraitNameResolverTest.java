@@ -28,6 +28,7 @@ class TraitNameResolverTest {
         assertThat(resolver.resolve(7200201, "특성 7200201")).isEqualTo("증폭 드론");
         assertThat(resolver.resolve(7200301, "특성 7200301")).isEqualTo("치유 드론");
         assertThat(resolver.resolve(7200501, "특성 7200501")).isEqualTo("헌신");
+        assertThat(resolver.resolve(7211301, "특성 7211301")).isEqualTo("폭발 선인장");
         assertThat(resolver.resolve(7300101, "특성 7300101")).isEqualTo("스텔라 차지");
         assertThat(resolver.resolve(7300201, "특성 7300201")).isEqualTo("도깨비불");
         assertThat(resolver.resolve(7300301, "특성 7300301")).isEqualTo("와류");
