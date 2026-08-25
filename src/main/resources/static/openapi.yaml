@@ -20,7 +20,7 @@ paths:
           description: User search result.
   /api/er/users/overview:
     get:
-      summary: Return user, rank, recent games, and recent stats in one response.
+      summary: Return user, current/previous rank, season summary, recent games, and recent stats in one response.
       parameters:
         - name: nickname
           in: query
@@ -43,7 +43,7 @@ paths:
             minimum: 1
       responses:
         '200':
-          description: User overview.
+          description: User overview including normalized seasonSummary for profile stat displays.
   /api/er/users/{userId}/stats:
     get:
       summary: Return season stats for a user.

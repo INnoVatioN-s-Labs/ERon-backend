@@ -15,7 +15,7 @@ Shortcuts:
   ./test-er-api.sh <nickname>
 
 Defaults:
-  seasonId=39
+  seasonId=40
   matchingTeamMode=3
   ERON_BASE_URL=${base_url}
 EOF
@@ -46,7 +46,7 @@ case "${command}" in
     fi
 
     nickname="$1"
-    season_id="${2:-39}"
+    season_id="${2:-40}"
     matching_team_mode="${3:-3}"
 
     curl --get "${base_url}/api/er/users/overview" \

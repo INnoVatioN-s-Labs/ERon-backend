@@ -96,26 +96,83 @@ class EternalReturnServiceTest {
         when(eternalReturnApiClient.getUserByNickname("testUser"))
                 .thenReturn(new UserSearchResponse("abc-123", "testUser", Map.of()));
         when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
-                .thenReturn(Map.of("userRank", Map.of("rank", 123, "rankScore", 4567)));
+                .thenReturn(Map.of("userRank", Map.of("rank", 321, "mmr", 8461)));
+        when(eternalReturnApiClient.getUserStats("abc-123", 41, 3))
+                .thenReturn(Map.of("userStats", List.of(Map.ofEntries(
+                        Map.entry("seasonId", 41),
+                        Map.entry("matchingMode", 3),
+                        Map.entry("matchingTeamMode", 3),
+                        Map.entry("totalGames", 12),
+                        Map.entry("winRate", 0.25),
+                        Map.entry("averageTeamKill", 9.5),
+                        Map.entry("averageKills", 4.0),
+                        Map.entry("top2Rate", 0.33),
+                        Map.entry("top3Rate", 0.5),
+                        Map.entry("averageDamageToPlayer", 18052.5),
+                        Map.entry("averageAssists", 5.0),
+                        Map.entry("averageRank", 4.5),
+                        Map.entry("averageMonsterKill", 31.5),
+                        Map.entry("averageCredit", 240),
+                        Map.entry("averageVision", 18.5),
+                        Map.entry("rank", 123),
+                        Map.entry("mmr", 4567)
+                ))));
         when(eternalReturnApiClient.getUserGames("abc-123"))
                 .thenReturn(new UserGamesResponse(
                         List.of(
-                                userGame(98765, 1, "Jackie", 2, 5),
+                                userGameWithSeason(98765, 41, 1, "Jackie", 2, 5),
                                 userGameWithSeason(98766, 0, 22, "Luke", 1, 20)
                         ),
-                        98766L
+                        null
                 ));
 
         UserOverviewResponse response = eternalReturnService.getUserOverview("testUser", 39, 3);
 
         assertThat(response.games().games()).hasSize(2);
+        assertThat(response.currentSeasonId()).isEqualTo(41);
+        assertThat(response.previousSeasonId()).isEqualTo(39);
+        assertThat(response.currentRank()).isSameAs(response.rank());
+        assertThat(response.rank())
+                .containsEntry("seasonId", 41)
+                .containsEntry("matchingTeamMode", 3);
         assertThat(response.rank().get("userRank"))
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("seasonId", 41)
+                .containsEntry("matchingTeamMode", 3)
+                .containsEntry("rankPoint", 4567)
                 .containsEntry("tier", "플래티넘 2")
-                .containsEntry("tierName", "플래티넘 2");
+                .containsEntry("tierName", "플래티넘 2")
+                .containsEntry("tierGrade", 2);
+        assertThat(response.previousRank())
+                .containsEntry("seasonId", 39)
+                .containsEntry("matchingTeamMode", 3);
+        assertThat(response.previousRank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("seasonId", 39)
+                .containsEntry("matchingTeamMode", 3)
+                .containsEntry("rank", 321)
+                .containsEntry("rankPoint", 8461)
+                .containsEntry("tier", "데미갓")
+                .containsEntry("tierName", "데미갓")
+                .containsEntry("tierGrade", null);
+        assertThat(response.seasonSummary())
+                .containsEntry("gameCount", 12)
+                .containsEntry("averageTeamKill", 9.5)
+                .containsEntry("winRate", 0.25)
+                .containsEntry("averageKills", 4.0)
+                .containsEntry("top2Rate", 0.33)
+                .containsEntry("top3Rate", 0.5)
+                .containsEntry("averageDamageToPlayer", 18052.5)
+                .containsEntry("averageAssists", 5.0)
+                .containsEntry("averageRank", 4.5)
+                .containsEntry("averageMonsterKill", 31.5)
+                .containsEntry("averageCredit", 240)
+                .containsEntry("averageVision", 18.5);
         assertThat(response.recentStats().gameCount()).isEqualTo(1);
         assertThat(response.recentStats().top3Count()).isEqualTo(1);
         assertThat(response.recentStats().averageKills()).isEqualTo(5.0);
+        verify(eternalReturnApiClient).getUserRank("abc-123", 39, 3);
+        verify(eternalReturnApiClient).getUserStats("abc-123", 41, 3);
     }
 
     @Test
@@ -136,12 +193,15 @@ class EternalReturnServiceTest {
                 .containsEntry("rank", 123)
                 .containsEntry("rankScore", 4567)
                 .containsEntry("mmr", 4321)
+                .containsEntry("rankPoint", 4567)
                 .containsEntry("tier", "플래티넘 2")
-                .containsEntry("tierName", "플래티넘 2");
+                .containsEntry("tierName", "플래티넘 2")
+                .containsEntry("tierGrade", 2);
         assertThat(response.raw().get("userRank"))
                 .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
                 .containsEntry("tier", "플래티넘 2")
-                .containsEntry("tierName", "플래티넘 2");
+                .containsEntry("tierName", "플래티넘 2")
+                .containsEntry("tierGrade", 2);
     }
 
     @Test
@@ -203,6 +263,198 @@ class EternalReturnServiceTest {
         assertThat(response.userRank())
                 .containsEntry("tier", "플래티넘 2")
                 .containsEntry("tierName", "플래티넘 2");
+    }
+
+    @Test
+    void getUserOverviewKeepsResponseWhenPreviousRankIsUnavailable() {
+        when(eternalReturnApiClient.getUserByNickname("testUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "testUser", Map.of()));
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenThrow(new EternalReturnApiException(HttpStatus.NOT_FOUND, "Previous rank not found."));
+        when(eternalReturnApiClient.getUserStats("abc-123", 41, 3))
+                .thenReturn(Map.of("userStats", List.of(Map.of(
+                        "seasonId", 41,
+                        "matchingMode", 3,
+                        "matchingTeamMode", 3,
+                        "rank", 123,
+                        "mmr", 8461
+                ))));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(List.of(), null));
+
+        UserOverviewResponse response = eternalReturnService.getUserOverview("testUser", 40, 3);
+
+        assertThat(response.rank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("tierName", "이터니티");
+        assertThat(response.previousRank())
+                .containsEntry("seasonId", 39)
+                .containsEntry("matchingTeamMode", 3);
+        assertThat(response.previousRank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .isEmpty();
+    }
+
+    @Test
+    void getUserOverviewKeepsCurrentRankEmptyWhenCurrentRankIsUnavailable() {
+        when(eternalReturnApiClient.getUserByNickname("testUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "testUser", Map.of()));
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenReturn(Map.of("userRank", Map.of("rank", 321, "mmr", 8461)));
+        when(eternalReturnApiClient.getUserStats("abc-123", 41, 3))
+                .thenReturn(Map.of("userStats", List.of()));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(List.of(), null));
+
+        UserOverviewResponse response = eternalReturnService.getUserOverview("testUser", 40, 3);
+
+        assertThat(response.currentRank())
+                .containsEntry("seasonId", 41)
+                .containsEntry("matchingTeamMode", 3);
+        assertThat(response.currentRank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .isEmpty();
+        assertThat(response.previousRank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("tierName", "데미갓");
+    }
+
+    @Test
+    void getUserOverviewUsesCurrentSeasonStatsForCurrentRank() {
+        when(eternalReturnApiClient.getUserByNickname("testUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "testUser", Map.of()));
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenReturn(Map.of("userRank", Map.of(
+                        "serverCode", 10,
+                        "mmr", 1825,
+                        "serverRank", 0,
+                        "rank", 153496
+                )));
+        when(eternalReturnApiClient.getUserStats("abc-123", 41, 3))
+                .thenReturn(Map.of("userStats", List.of(Map.of(
+                        "seasonId", 41,
+                        "matchingMode", 3,
+                        "matchingTeamMode", 3,
+                        "mmr", 639,
+                        "rank", 123456
+                ))));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(List.of(), null));
+
+        UserOverviewResponse response = eternalReturnService.getUserOverview("testUser", 40, 3);
+
+        assertThat(response.currentRank())
+                .containsEntry("seasonId", 41)
+                .containsEntry("matchingTeamMode", 3);
+        assertThat(response.currentRank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("seasonId", 41)
+                .containsEntry("rank", 123456)
+                .containsEntry("rankPoint", 639)
+                .containsEntry("tierName", "브론즈 4");
+        assertThat(response.previousRank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("seasonId", 39)
+                .containsEntry("rank", 153496)
+                .containsEntry("rankPoint", 1825)
+                .containsEntry("tierName", "실버 3");
+    }
+
+    @Test
+    void getUserOverviewCollectsCurrentSeasonRankedGamesAcrossPagesForRecentStats() {
+        when(eternalReturnApiClient.getUserByNickname("testUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "testUser", Map.of()));
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenReturn(Map.of("userRank", Map.of("rank", 321, "mmr", 8461)));
+        when(eternalReturnApiClient.getUserStats("abc-123", 41, 3))
+                .thenReturn(Map.of("userStats", List.of(Map.of(
+                        "seasonId", 41,
+                        "matchingMode", 3,
+                        "matchingTeamMode", 3,
+                        "mmr", 4567,
+                        "rank", 123
+                ))));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(
+                        List.of(userGameWithSeason(98765, 0, 1, "Jackie", 1, 20)),
+                        98765L
+                ));
+        when(eternalReturnApiClient.getUserGames("abc-123", 98765L))
+                .thenReturn(new UserGamesResponse(
+                        List.of(userGameWithSeason(98764, 41, 22, "Luke", 2, 7)),
+                        null
+                ));
+
+        UserOverviewResponse response = eternalReturnService.getUserOverview("testUser", 40, 3);
+
+        assertThat(response.games().games()).hasSize(1);
+        assertThat(response.recentStats().gameCount()).isEqualTo(1);
+        assertThat(response.recentStats().top3Count()).isEqualTo(1);
+        assertThat(response.recentStats().averageKills()).isEqualTo(7.0);
+        assertThat(response.recentStats().mostPlayedCharacterName()).isEqualTo("Luke");
+    }
+
+    @Test
+    void getUserOverviewKeepsCurrentRankWhenCurrentSeasonStatsOnlyHasMmr() {
+        when(eternalReturnApiClient.getUserByNickname("testUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "testUser", Map.of()));
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenReturn(Map.of("userRank", Map.of(
+                        "serverCode", 10,
+                        "mmr", 1825,
+                        "serverRank", 0,
+                        "rank", 153496
+                )));
+        when(eternalReturnApiClient.getUserStats("abc-123", 41, 3))
+                .thenReturn(Map.of("userStats", List.of(Map.of(
+                        "matchingMode", 3,
+                        "matchingTeamMode", 3,
+                        "mmr", 639,
+                        "totalGames", 1
+                ))));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(List.of(), null));
+
+        UserOverviewResponse response = eternalReturnService.getUserOverview("testUser", 40, 3);
+
+        assertThat(response.currentRank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("seasonId", 41)
+                .containsEntry("rankPoint", 639)
+                .containsEntry("tierName", "브론즈 4");
+        assertThat(response.previousRank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("tierName", "실버 3");
+    }
+
+    @Test
+    void getUserOverviewIgnoresCurrentRankApiWhenStatsExists() {
+        when(eternalReturnApiClient.getUserByNickname("testUser"))
+                .thenReturn(new UserSearchResponse("abc-123", "testUser", Map.of()));
+        when(eternalReturnApiClient.getUserRank("abc-123", 39, 3))
+                .thenReturn(Map.of("userRank", Map.of(
+                        "serverCode", 10,
+                        "mmr", 8461,
+                        "rank", 321
+                )));
+        when(eternalReturnApiClient.getUserStats("abc-123", 41, 3))
+                .thenReturn(Map.of("userStats", List.of(Map.of(
+                        "matchingMode", 3,
+                        "matchingTeamMode", 3,
+                        "mmr", 639,
+                        "rank", 123456
+                ))));
+        when(eternalReturnApiClient.getUserGames("abc-123"))
+                .thenReturn(new UserGamesResponse(List.of(), null));
+
+        UserOverviewResponse response = eternalReturnService.getUserOverview("testUser", 40, 3);
+
+        assertThat(response.currentRank().get("userRank"))
+                .asInstanceOf(org.assertj.core.api.InstanceOfAssertFactories.MAP)
+                .containsEntry("seasonId", 41)
+                .containsEntry("rank", 123456)
+                .containsEntry("rankPoint", 639)
+                .containsEntry("tierName", "브론즈 4");
     }
 
     @Test
@@ -505,6 +757,7 @@ class EternalReturnServiceTest {
                 clock,
                 10_000,
                 40,
+                39,
                 2,
                 "데미갓",
                 1000
@@ -525,7 +778,7 @@ class EternalReturnServiceTest {
 
     @Test
     void getCurrentCharacterMetaDoesNotFilterWhenRankingTierIsMissing() {
-        when(eternalReturnApiClient.getTopRankings(39, 3))
+        when(eternalReturnApiClient.getTopRankings(41, 3))
                 .thenReturn(Map.of(
                         "code", 200,
                         "topRanks", List.of(Map.of(
@@ -545,7 +798,7 @@ class EternalReturnServiceTest {
         Map<String, Object> response = eternalReturnService.getCurrentCharacterMeta();
 
         assertThat(response)
-                .containsEntry("seasonId", 39)
+                .containsEntry("seasonId", 41)
                 .containsEntry("matchingTeamMode", 3)
                 .containsEntry("tier", "")
                 .containsEntry("sampleGameCount", 1);
@@ -565,7 +818,7 @@ class EternalReturnServiceTest {
                 Duration.ofSeconds(30),
                 morningClock
         );
-        when(eternalReturnApiClient.getTopRankings(39, 3))
+        when(eternalReturnApiClient.getTopRankings(41, 3))
                 .thenReturn(Map.of(
                         "code", 200,
                         "topRanks", List.of(Map.of(
@@ -590,7 +843,7 @@ class EternalReturnServiceTest {
 
         assertThat(cachedResponse).isSameAs(firstResponse);
         assertThat(refreshedResponse).isNotSameAs(firstResponse);
-        verify(eternalReturnApiClient, times(2)).getTopRankings(39, 3);
+        verify(eternalReturnApiClient, times(2)).getTopRankings(41, 3);
     }
 
     private UserGamesResponse userGamesResponse(long gameId) {

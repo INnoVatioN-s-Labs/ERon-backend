@@ -14,7 +14,8 @@ public class EternalReturnApiProperties {
     private Duration userGamesCacheTtl = Duration.ofSeconds(30);
     private long cacheMaximumSize = 10_000;
     private String[] corsAllowedOrigins = {"http://localhost:5173"};
-    private int currentSeasonId = 39;
+    private int currentSeasonId = 41;
+    private int previousSeasonId = 39;
     private int currentMatchingTeamMode = 3;
     private String currentMetaTier = "";
     private int currentMetaRankingSampleLimit = 1000;
@@ -82,6 +83,14 @@ public class EternalReturnApiProperties {
 
     public void setCurrentSeasonId(int currentSeasonId) {
         this.currentSeasonId = currentSeasonId;
+    }
+
+    public int getPreviousSeasonId() {
+        return previousSeasonId;
+    }
+
+    public void setPreviousSeasonId(int previousSeasonId) {
+        this.previousSeasonId = previousSeasonId;
     }
 
     public int getCurrentMatchingTeamMode() {

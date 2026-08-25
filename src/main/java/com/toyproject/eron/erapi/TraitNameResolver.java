@@ -18,6 +18,7 @@ public final class TraitNameResolver {
             Map.entry(7200201, "증폭 드론"),
             Map.entry(7200301, "치유 드론"),
             Map.entry(7200501, "헌신"),
+            Map.entry(7211301, "폭발 선인장"),
             Map.entry(7300101, "스텔라 차지"),
             Map.entry(7300201, "도깨비불"),
             Map.entry(7300301, "와류")
